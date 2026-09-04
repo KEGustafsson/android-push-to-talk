@@ -26,6 +26,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   Wi-Fi lock for the duration of a session. Owns the engine; the notification mirrors the
   status line and has a Disconnect action. The activity never disconnects on its own
   lifecycle, only on the button or the notification action.
+- Settings: `SettingsActivity` is a stock `PreferenceFragmentCompat` over the default
+  SharedPreferences; `Prefs` reads them with validated fallbacks and `SettingsRules` holds the
+  pure, unit-tested validation. Name and hop limit are pushed into the engine on every resume;
+  group/port/passphrase are constructor arguments of the transports, so they need a reconnect.
+  Sample rate is deliberately not a setting: 16 kHz is baked into the Opus path and the decimator.
 - `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.
   Codec 0 = PCM16LE frame, 1 = Opus packet, 2 = `Hello` roster heartbeat (no audio; older
   builds drop it as unknown, so it needed no version bump). Receivers decode per packet, so codecs can mix.
@@ -69,7 +74,6 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-1. Settings screen: multicast group/port, Aware passphrase, sample rate, hop limit.
-2. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
-3. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
+1. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
+2. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
    letting the jitter queue underrun.

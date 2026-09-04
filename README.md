@@ -65,8 +65,13 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    The list under the status line shows who is online, how you hear them (which transport,
    how many hops), what they are connected to, and who is talking; the notification title
    shows the head count. A phone silent for 4 s drops off. Rename a phone in
-   Settings > About phone > Device name. Older builds simply ignore hellos and are listed
-   by id from their audio.
+   Settings > About phone > Device name, or give the app its own name in its Settings.
+   Older builds simply ignore hellos and are listed by id from their audio.
+12. **Settings** (button top right): the name shown to the crew, the multicast group and
+   port, the Wi‑Fi Aware passphrase (phones only link when it matches, so it doubles as a
+   crew name) and the hop limit. Name and hop limit apply at once; the network ones on the
+   next Connect. The main screen also remembers its transports, Bluetooth peer and switches,
+   so a normal day is open the app, press Connect.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
@@ -83,6 +88,7 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `Packet` — 13-byte header: 'PT', version, codec, ttl, senderId, seq
 - `Hello` — roster heartbeat payload: name, transport flags, hop budget
 - `PttEngine` — modes, codec, multi‑transport, relay with (senderId, seq) seen‑cache and ttl, roster + heartbeat
+- `Prefs`, `SettingsActivity` — validated settings (`SettingsRules`) and remembered main-screen choices
 - `PttService` — foreground service owning the engine, wake/Wi‑Fi locks, notification
 - `MainActivity` — UI, permissions; binds to the service while visible
 
