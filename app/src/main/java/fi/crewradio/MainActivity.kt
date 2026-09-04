@@ -26,6 +26,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -54,7 +55,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var crewName: TextView
-    private lateinit var status: TextView
+    private lateinit var talkCard: View
     private lateinit var talkingLine: TextView
     private lateinit var peerCount: TextView
     private lateinit var pttButton: MaterialButton
@@ -85,9 +86,8 @@ class MainActivity : AppCompatActivity() {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             val s = (binder as PttService.LocalBinder).service
             service = s
-            s.statusListener = { msg -> runOnUiThread { status.text = msg; syncUi() } }
+            s.statusListener = { _ -> runOnUiThread { syncUi() } }        // the text itself lives on the Status screen
             s.rosterListener = { peers -> runOnUiThread { renderRoster(peers) } }
-            status.text = s.lastStatus
             renderRoster(s.lastRoster)
             applySettings(s.engine)
             syncUi()
@@ -108,7 +108,7 @@ class MainActivity : AppCompatActivity() {
 
         prefs = Prefs(this)
         crewName = findViewById(R.id.crewName)
-        status = findViewById(R.id.status)
+        talkCard = findViewById(R.id.talkCard)
         talkingLine = findViewById(R.id.talkingLine)
         peerCount = findViewById(R.id.peerCount)
         pttButton = findViewById(R.id.pttButton)
@@ -233,7 +233,11 @@ class MainActivity : AppCompatActivity() {
         if (tileOn(Prefs.KEY_USE_LAN)) list += LanTransport(ctx, prefs.group, prefs.port)
         if (tileOn(Prefs.KEY_USE_BT)) list += BluetoothTransport(ctx, pairedDevices.getOrNull(btPeerIndex - 1))
         if (tileOn(Prefs.KEY_USE_AWARE)) list += WifiAwareTransport(ctx, s.engine.senderId, prefs.passphrase)
-        if (list.isEmpty()) { status.text = "PICK A TRANSPORT FIRST"; syncUi(); return }
+        if (list.isEmpty()) {
+            Toast.makeText(this, R.string.pick_transport, Toast.LENGTH_SHORT).show()
+            syncUi()
+            return
+        }
         applySettings(s.engine)
         s.connect(list)
         syncUi()
@@ -295,10 +299,10 @@ class MainActivity : AppCompatActivity() {
         peerCount.text = peers.size.toString()
         val talking = peers.filter { it.talking }
         if (talking.isEmpty()) {
-            talkingLine.visibility = View.GONE
+            talkCard.visibility = View.GONE
         } else {
             talkingLine.text = "\u25CF " + getString(R.string.talking_line, talking.joinToString(", ") { it.label.uppercase() })
-            talkingLine.visibility = View.VISIBLE
+            talkCard.visibility = View.VISIBLE
         }
     }
 
