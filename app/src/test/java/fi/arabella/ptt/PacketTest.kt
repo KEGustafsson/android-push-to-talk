@@ -31,6 +31,13 @@ class PacketTest {
     }
 
     @Test
+    fun helloIsAKnownCodec() {
+        val p = Packet.encode(1, 1, Packet.Codec.HELLO, 4, Hello("n", 0, 4).encode())
+        assertEquals(Packet.Codec.HELLO, Packet.parse(p)!!.codec)
+        assertEquals(Packet.Codec.HELLO, Packet.Codec.fromId(2))
+    }
+
+    @Test
     fun ttlCanBeRewrittenInPlace() {
         val p = Packet.encode(1, 1, Packet.Codec.PCM, 2, payload)
         Packet.setTtl(p, 1)

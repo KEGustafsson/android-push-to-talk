@@ -7,7 +7,9 @@ import java.nio.ByteBuffer
  *
  *     'P' 'T' | version u8 = 2 | codec u8 | ttl u8 | senderId int32 | seq int32 | payload
  *
- * codec: 0 = one 20 ms frame of PCM16LE 16 kHz mono, 1 = one 20 ms Opus packet.
+ * codec: 0 = one 20 ms frame of PCM16LE 16 kHz mono, 1 = one 20 ms Opus packet,
+ *        2 = a [Hello] roster heartbeat (no audio). A build that predates hello drops
+ *        the packet as an unknown codec, which is why adding it needed no version bump.
  * ttl:   hops this packet may still travel. A relay clamps it to its own hop budget,
  *        forwards only while it is > 1 and decrements it first, so a flood over a
  *        large mesh is bounded and no peer can buy itself extra hops.
@@ -20,8 +22,9 @@ object Packet {
     const val HEADER = 13
     const val VERSION = 2
 
+    /** What the payload is. PCM and OPUS carry audio; HELLO is the roster heartbeat. */
     enum class Codec(val id: Int) {
-        PCM(0), OPUS(1);
+        PCM(0), OPUS(1), HELLO(2);
 
         companion object {
             /** Codec for a wire id, or null for an id this build does not know. */
