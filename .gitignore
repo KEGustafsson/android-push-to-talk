@@ -14,3 +14,4 @@ captures/
 *.dex
 *.class
 .DS_Store
+.kotlin/
