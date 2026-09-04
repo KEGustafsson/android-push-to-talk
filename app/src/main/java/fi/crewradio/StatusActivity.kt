@@ -138,7 +138,7 @@ class StatusActivity : AppCompatActivity() {
         card("LOG", "").let { rows ->
             val lines = s?.statusLog.orEmpty().asReversed()
             if (lines.isEmpty()) rows.addView(note("-"))
-            else for (line in lines.take(12)) rows.addView(logLine(line))
+            else for (line in lines) rows.addView(logLine(line))
         }
     }
 

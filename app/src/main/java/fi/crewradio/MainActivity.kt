@@ -154,6 +154,7 @@ class MainActivity : AppCompatActivity() {
                 if (engine?.isConnected == true) return@setOnClickListener   // takes effect on the next Connect anyway
                 tile.on = !tile.on
                 prefs.put(tile.key, tile.on)
+                if (tile.on && !hasPermissions()) requestPermissions()       // ask for what this transport needs, now
                 if (tile.key == Prefs.KEY_USE_BT) refreshPeer()
             }
         }
@@ -349,7 +350,8 @@ class MainActivity : AppCompatActivity() {
     /** Reads the bonded devices and re-finds the remembered one. */
     @SuppressLint("MissingPermission")
     private fun loadPairedDevices() {
-        if (!hasPermissions()) { requestPermissions(); return }
+        val missing = bluetoothPermissions().any { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+        if (missing) { requestPermissions(); return }
         val adapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
         pairedDevices = adapter?.bondedDevices?.toList()?.sortedBy { it.name ?: it.address } ?: emptyList()
         val remembered = pairedDevices.indexOfFirst { it.address == prefs.string(Prefs.KEY_BT_PEER) }
@@ -358,15 +360,24 @@ class MainActivity : AppCompatActivity() {
 
     // ---- permissions --------------------------------------------------------------
 
-    /** Permissions without which Connect cannot work. */
+    /**
+     * Permissions without which Connect cannot work, for the transports that are switched
+     * on: the mic always, Bluetooth only with the Bluetooth tile, Aware discovery only with
+     * the Aware tile. A LAN-only crew member never has to grant Bluetooth anything.
+     */
     private fun requiredPermissions(): Array<String> {
         val list = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) list += Manifest.permission.BLUETOOTH_CONNECT
-        // Wi-Fi Aware discovery
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) list += Manifest.permission.NEARBY_WIFI_DEVICES
-        else list += Manifest.permission.ACCESS_FINE_LOCATION
+        if (tileOn(Prefs.KEY_USE_BT)) list += bluetoothPermissions()
+        if (tileOn(Prefs.KEY_USE_AWARE)) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) list += Manifest.permission.NEARBY_WIFI_DEVICES
+            else list += Manifest.permission.ACCESS_FINE_LOCATION
+        }
         return list.toTypedArray()
     }
+
+    /** What listing bonded devices and dialling one need; nothing before Android 12. */
+    private fun bluetoothPermissions(): List<String> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) listOf(Manifest.permission.BLUETOOTH_CONNECT) else emptyList()
 
     /**
      * Asked for, but not required to Connect:

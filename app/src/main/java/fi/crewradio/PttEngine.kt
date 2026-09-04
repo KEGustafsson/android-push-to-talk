@@ -263,6 +263,7 @@ class PttEngine(
 
     /** Receive path for every transport: dedupe, relay within the hop budget, then roster, then decode and play. */
     private fun onPacket(p: ByteArray, from: Transport, link: Any?) {
+        if (transports.isEmpty()) return                  // a transport still winding down after disconnect
         val h = Packet.parse(p) ?: return
         if (h.senderId == senderId) return
         if (!markSeen(h.senderId, h.seq)) { duplicates.incrementAndGet(); return }   // duplicate via another path
@@ -273,11 +274,12 @@ class PttEngine(
         val ttl = minOf(h.ttl, maxHops)
         if (relay && ttl > 1) {
             Packet.setTtl(p, ttl - 1)
-            relayed.incrementAndGet()
+            var forwarded = false
             for (t in transports) {
-                if (t === from) { if (t.relayWithin) t.send(p, except = link) }
-                else t.send(p)
+                if (t === from) { if (t.relayWithin) { t.send(p, except = link); forwarded = true } }
+                else { t.send(p); forwarded = true }
             }
+            if (forwarded) relayed.incrementAndGet()
         }
 
         if (h.codec == Packet.Codec.HELLO) {

@@ -15,9 +15,9 @@ object SettingsRules {
     const val DEFAULT_PASSPHRASE = "crew-radio"
     const val DEFAULT_HOPS = AudioConfig.DEFAULT_TTL
 
-    /** Empty means "use the device name"; otherwise it has to fit a [Hello]. */
+    /** Empty means "use the device name"; otherwise it has to fit a [Hello] and stay on one line. */
     fun validName(s: String): Boolean =
-        s.trim().toByteArray(Charsets.UTF_8).size <= Hello.MAX_NAME_BYTES
+        s.trim().toByteArray(Charsets.UTF_8).size <= Hello.MAX_NAME_BYTES && s.none { it == '\r' || it == '\n' }
 
     /** An IPv4 multicast address: dotted quad, first octet 224–239. */
     fun validGroup(s: String): Boolean {
@@ -35,7 +35,7 @@ object SettingsRules {
         s.length in 8..63 && s.all { it.code in 0x20..0x7E }
 
     /** The header name: short enough to stay on one line at 30 sp. Empty means the app name. */
-    fun validCrewName(s: String): Boolean = s.trim().length <= 24
+    fun validCrewName(s: String): Boolean = s.trim().length <= 24 && s.none { it == '\r' || it == '\n' }
 
     /** Relays a packet may cross; 1 means no relaying at all. */
     fun validHops(s: String): Boolean = s.trim().toIntOrNull()?.let { it in 1..16 } == true

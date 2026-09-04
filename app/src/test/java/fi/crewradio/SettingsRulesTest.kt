@@ -12,6 +12,7 @@ class SettingsRulesTest {
         assertTrue(SettingsRules.validName("  Skipper S25  "))
         assertTrue(SettingsRules.validName("ä".repeat(16)))          // 32 bytes exactly
         assertFalse(SettingsRules.validName("ä".repeat(17)))         // 34 bytes
+        assertFalse(SettingsRules.validName("two\nlines"))
     }
 
     @Test
@@ -49,6 +50,7 @@ class SettingsRulesTest {
         assertTrue(SettingsRules.validCrewName(" Skipper "))
         assertTrue(SettingsRules.validCrewName("x".repeat(24)))
         assertFalse(SettingsRules.validCrewName("x".repeat(25)))
+        assertFalse(SettingsRules.validCrewName("Crew\nTwo"))
     }
 
     @Test
