@@ -3,6 +3,7 @@ package fi.arabella.ptt
 import android.content.Context
 import android.media.AudioManager
 import android.os.Build
+import android.os.SystemClock
 import android.provider.Settings
 import fi.arabella.ptt.audio.AudioCapture
 import fi.arabella.ptt.audio.AudioConfig
@@ -57,7 +58,9 @@ class Peer(
  *
  * Roster: while connected a heartbeat thread sends a [Hello] every second, and every
  * hello or audio packet heard refreshes that sender's entry. A sender silent for
- * [PEER_TIMEOUT_MS] is dropped. [onRoster] fires only when the list actually changes.
+ * [PEER_TIMEOUT_MS] is dropped; at most [MAX_NODES] are tracked. Timing uses the
+ * monotonic clock, so a wall-clock change never ages or revives anyone. [onRoster]
+ * fires only when the list actually changes.
  */
 class PttEngine(
     context: Context,
@@ -267,7 +270,7 @@ class PttEngine(
     /** Heartbeat thread: announce ourselves, drop the silent, clear stale talking marks, publish if anything moved. */
     private fun tick() {
         sendHello()
-        val now = System.currentTimeMillis()
+        val now = SystemClock.elapsedRealtime()
         var changed = false
         for ((id, n) in nodes) {
             if (now - n.lastSeen > PEER_TIMEOUT_MS) {
@@ -287,19 +290,19 @@ class PttEngine(
     }
 
     private fun heardHello(id: Int, hello: Hello, from: Transport, ttlLeft: Int) {
-        val n = nodes.computeIfAbsent(id) { Node() }
+        val n = nodeFor(id) ?: return
         n.name = hello.name
         n.transports = hello.transports
         n.via = from.name
         n.hops = (hello.ttl - ttlLeft).coerceAtLeast(0)
-        n.lastSeen = System.currentTimeMillis()
+        n.lastSeen = SystemClock.elapsedRealtime()
         publishRoster()
     }
 
     /** Audio is proof of life too, and lights the talking mark; the roster is only republished when that flips. */
     private fun heardAudio(id: Int, from: Transport) {
-        val n = nodes.computeIfAbsent(id) { Node() }
-        val now = System.currentTimeMillis()
+        val n = nodeFor(id) ?: return
+        val now = SystemClock.elapsedRealtime()
         n.lastSeen = now
         n.lastAudio = now
         n.via = from.name
@@ -308,6 +311,15 @@ class PttEngine(
             publishRoster()
         }
     }
+
+    /**
+     * The entry for a sender, created on first sight — unless the roster is already full, in
+     * which case an unknown sender is ignored. Sender ids are unauthenticated, so without a cap
+     * anyone in radio range could grow the list without bound by cycling ids faster than the
+     * 4 s expiry. The check and the insert are not one atomic step; a few over the cap is fine.
+     */
+    private fun nodeFor(id: Int): Node? =
+        nodes[id] ?: if (nodes.size >= MAX_NODES) null else nodes.computeIfAbsent(id) { Node() }
 
     /** Rebuilds the list and hands it out only if it differs from the last one published. */
     @Synchronized
@@ -393,6 +405,7 @@ class PttEngine(
         const val TICK_MS = 1_000L            // hello cadence; also how often talking marks and timeouts are checked
         const val PEER_TIMEOUT_MS = 4_000L    // three missed hellos and a bit
         const val TALK_HOLD_MS = 400L         // how long after the last frame a peer still shows as talking
+        const val MAX_NODES = 64              // far more than a crew; a ceiling, not a target
 
         /** The name Android shows in Settings > About, which the user can change; the model otherwise. */
         fun deviceName(context: Context): String =

@@ -1,5 +1,8 @@
 package fi.arabella.ptt
 
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 
 /**
@@ -31,13 +34,26 @@ class Hello(val name: String, val transports: Int, val ttl: Int) {
         const val BT = 2
         const val AWARE = 4
 
-        /** Parses [length] bytes at [offset]; null for anything this build does not understand. */
+        /**
+         * Parses [length] bytes at [offset]; null for anything off the wire contract — an unknown
+         * version, a name over [MAX_NAME_BYTES], trailing bytes, or invalid UTF-8. These packets come
+         * from whoever is on the same network, so nothing about them is taken on trust. Control
+         * characters are stripped from the name so it stays one line on screen.
+         */
         fun decode(p: ByteArray, offset: Int, length: Int): Hello? {
             if (length < 4 || p[offset].toInt() != VERSION) return null
             val nameLen = p[offset + 3].toInt() and 0xFF
-            if (length < 4 + nameLen) return null
-            val name = String(p, offset + 4, nameLen, StandardCharsets.UTF_8)
-            return Hello(name, p[offset + 1].toInt() and 0xFF, p[offset + 2].toInt() and 0xFF)
+            if (nameLen > MAX_NAME_BYTES || length != 4 + nameLen) return null
+            val name = try {
+                StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(p, offset + 4, nameLen))
+                    .toString()
+            } catch (_: CharacterCodingException) {
+                return null
+            }
+            return Hello(name.filterNot { it.isISOControl() }, p[offset + 1].toInt() and 0xFF, p[offset + 2].toInt() and 0xFF)
         }
 
         /** The flag for a transport, by the name it reports; unknown transports carry no flag. */
