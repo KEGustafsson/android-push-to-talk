@@ -1,3 +1,7 @@
 <resources>
     <style name="Theme.PTT" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+    <!-- The settings screen wants an action bar for its back arrow, and the preference list its theme overlay. -->
+    <style name="Theme.PTT.Settings" parent="Theme.MaterialComponents.DayNight">
+        <item name="preferenceTheme">@style/PreferenceThemeOverlay</item>
+    </style>
 </resources>

@@ -46,6 +46,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".SettingsActivity"
+            android:label="Settings"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.PTT.Settings" />
+
         <!-- Keeps the engine alive with the screen off; see PttService. -->
         <service
             android:name=".PttService"

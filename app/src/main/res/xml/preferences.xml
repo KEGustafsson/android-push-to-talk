@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="This phone">
+        <EditTextPreference
+            app:key="display_name"
+            app:title="Name shown to the crew"
+            app:dialogMessage="Leave empty to use the Android device name. Up to 32 bytes. Applies immediately."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="WLAN — takes effect on the next Connect">
+        <EditTextPreference
+            app:key="multicast_group"
+            app:title="Multicast group"
+            app:defaultValue="239.255.42.1"
+            app:dialogMessage="An IPv4 multicast address, 224.0.0.0 to 239.255.255.255. Every phone on the crew must use the same one."
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:key="lan_port"
+            app:title="UDP port"
+            app:defaultValue="47474"
+            app:dialogMessage="1024 to 65535, the same on every phone."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Wi‑Fi Aware — takes effect on the next Connect">
+        <EditTextPreference
+            app:key="aware_passphrase"
+            app:title="Passphrase"
+            app:defaultValue="arabella-ptt"
+            app:dialogMessage="8 to 63 plain ASCII characters. Phones only link up when it matches, so it doubles as the crew name."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Mesh">
+        <EditTextPreference
+            app:key="max_hops"
+            app:title="Hop limit"
+            app:defaultValue="4"
+            app:dialogMessage="How many relays a packet may cross, 1 to 16. Also caps what this phone forwards for others. Applies immediately."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+</PreferenceScreen>
