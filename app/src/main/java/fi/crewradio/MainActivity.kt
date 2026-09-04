@@ -126,6 +126,17 @@ class MainActivity : AppCompatActivity() {
             Tile(Prefs.KEY_USE_AWARE, findViewById(R.id.tileAware), findViewById(R.id.tileAwareIcon), findViewById(R.id.tileAwareLabel))
         )
 
+        // The disc is a circle as big as its area allows: the smaller of width and height.
+        findViewById<View>(R.id.talkArea).addOnLayoutChangeListener { _, l, t, r, b, _, _, _, _ ->
+            val size = minOf(r - l, b - t)
+            val lp = pttButton.layoutParams
+            if (size > 0 && (lp.width != size || lp.height != size)) {
+                lp.width = size
+                lp.height = size
+                pttButton.layoutParams = lp
+            }
+        }
+
         menuButton.setOnClickListener { v ->
             PopupMenu(this, v).apply {
                 menuInflater.inflate(R.menu.main, menu)

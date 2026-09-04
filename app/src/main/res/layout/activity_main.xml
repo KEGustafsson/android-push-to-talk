@@ -214,8 +214,9 @@
             android:orientation="vertical" />
     </LinearLayout>
 
-    <!-- The talk disc: as large a circle as the remaining space allows. -->
+    <!-- The talk disc: as large a circle as the remaining space allows (sized in code to min(w, h)). -->
     <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/talkArea"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -239,8 +240,6 @@
             app:strokeColor="@color/outline"
             app:backgroundTint="@color/primary"
             android:textColor="@color/on_primary"
-            app:layout_constraintDimensionRatio="1:1"
-            app:layout_constraintWidth_percent="1.0"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
