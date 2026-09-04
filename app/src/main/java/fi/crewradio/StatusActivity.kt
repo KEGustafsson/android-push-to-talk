@@ -108,8 +108,14 @@ class StatusActivity : AppCompatActivity() {
             rows.addView(kv("MODE", if (prefs.fullDuplex) "Full duplex" else "Half duplex"))
             rows.addView(kv("RELAY", if (prefs.relay) "On" else "Off"))
             rows.addView(kv("CODEC", if (prefs.opus) "Opus" else "PCM"))
-            rows.addView(kv("AUDIO", if (on) e?.audioRouteNow ?: "-" else if (prefs.speakerOnly) "Speaker" else "Headset or speaker"))
+            rows.addView(kv("AUDIO", if (on) e?.audioRouteNow ?: "-" else when (prefs.audioRoute) {
+                Prefs.ROUTE_SPEAKER -> "Speaker"
+                Prefs.ROUTE_EARPIECE -> "Earpiece"
+                else -> "Headset or speaker"
+            }))
             rows.addView(kv("HOP LIMIT", prefs.hops.toString()))
+            val peak = e?.micPeakNow ?: -1
+            if (peak >= 0) rows.addView(kv("VOICE GATE", (if (e?.voiceArmed == true) "armed" else "away from ear") + " · peak $peak · opens at ${e?.gateOpenRms}"))
         }
 
         // Network

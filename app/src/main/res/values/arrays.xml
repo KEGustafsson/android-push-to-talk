@@ -7,12 +7,14 @@
         <item>Headset button and volume keys</item>
     </string-array>
     <string-array name="audio_route_entries">
-        <item>Headset when connected, else speaker</item>
-        <item>Always the speaker</item>
+        <item>Headset when connected, else loudspeaker</item>
+        <item>Always the loudspeaker</item>
+        <item>Earpiece: phone to the ear, voice keys the mic</item>
     </string-array>
     <string-array name="audio_route_values">
         <item>auto</item>
         <item>speaker</item>
+        <item>earpiece</item>
     </string-array>
     <string-array name="hw_button_values">
         <item>off</item>

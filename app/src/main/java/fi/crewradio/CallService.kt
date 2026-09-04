@@ -38,8 +38,13 @@ class CallService : ConnectionService() {
         c.audioModeIsVoip = true
         c.setAddress(request?.address ?: CallBridge.ADDRESS, TelecomManager.PRESENTATION_ALLOWED)
         c.setCallerDisplayName("Crew Radio", TelecomManager.PRESENTATION_ALLOWED)
+        if (!CallBridge.attached(c)) {
+            // The engine gave up on this placement (headset gone, session ended) before Telecom answered.
+            c.setDisconnected(DisconnectCause(DisconnectCause.CANCELED))
+            c.destroy()
+            return c
+        }
         c.setActive()
-        CallBridge.attached(c)
         return c
     }
 
@@ -102,7 +107,8 @@ object CallBridge {
     private const val ACCOUNT_ID = "crewradio"
 
     @Volatile var listener: Listener? = null
-    @Volatile var speakerOnly = false
+    /** The route policy while Telecom is routing: null = headset first, else the given CallAudioState route. */
+    @Volatile var forcedRoute: Int? = null
     @Volatile private var connection: CallService.ChannelConnection? = null
     @Volatile private var placing = false
 
@@ -111,7 +117,7 @@ object CallBridge {
     /** The route the policy wants, or null to leave Telecom's choice alone. */
     fun wantedRoute(state: CallAudioState): Int? {
         val mask = state.supportedRouteMask
-        if (speakerOnly) return if (mask and CallAudioState.ROUTE_SPEAKER != 0) CallAudioState.ROUTE_SPEAKER else null
+        forcedRoute?.let { return if (mask and it != 0) it else null }
         return when {
             mask and CallAudioState.ROUTE_BLUETOOTH != 0 -> CallAudioState.ROUTE_BLUETOOTH
             mask and CallAudioState.ROUTE_WIRED_HEADSET != 0 -> CallAudioState.ROUTE_WIRED_HEADSET
@@ -145,16 +151,20 @@ object CallBridge {
         }
     }
 
+    /** Ends the call, or cancels a placement Telecom has not answered yet: its connection is refused in [attached]. */
     fun stop() {
         placing = false
         connection?.end(DisconnectCause.LOCAL)
     }
 
-    internal fun attached(c: CallService.ChannelConnection) {
+    /** The connection Telecom created for the current placement; false if that placement was cancelled meanwhile. */
+    internal fun attached(c: CallService.ChannelConnection): Boolean {
+        if (!placing) return false
         placing = false
         connection?.takeIf { it !== c }?.end(DisconnectCause.LOCAL)
         connection = c
         listener?.onCallActive()
+        return true
     }
 
     internal fun detached(c: CallService.ChannelConnection) {

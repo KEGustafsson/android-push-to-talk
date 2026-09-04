@@ -29,8 +29,12 @@ import android.os.Looper
  */
 class AudioRoute(private val context: Context, private val onStatus: (String) -> Unit) {
 
-    /** [AUTO] prefers a headset; [SPEAKER] always uses the loudspeaker, headsets ignored. */
-    enum class Policy { AUTO, SPEAKER }
+    /**
+     * [AUTO] prefers a headset, else the loudspeaker; [SPEAKER] always the loudspeaker;
+     * [EARPIECE] always the earpiece, the phone held to the ear like a call. Headsets are
+     * ignored by the last two.
+     */
+    enum class Policy { AUTO, SPEAKER, EARPIECE }
 
     @Volatile var policy = Policy.AUTO
         set(value) { field = value; if (active) apply(announce = true) }
@@ -102,7 +106,7 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
         handler.removeCallbacks(healRunnable)
         audioManager.unregisterAudioDeviceCallback(deviceCallback)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) commDeviceListener?.let { audioManager.removeOnCommunicationDeviceChangedListener(it) }
-        else try { context.unregisterReceiver(scoReceiver) } catch (_: Exception) {}
+        else try { context.unregisterReceiver(scoReceiver) } catch (e: Exception) { onStatus("Audio route: ${e.message}") }
         if (bluetoothWanted) { bluetoothWanted = false; onBluetoothHeadset?.invoke(false) }
         passive = false
         try {
@@ -114,7 +118,9 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
                 @Suppress("DEPRECATION")
                 audioManager.isSpeakerphoneOn = false
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            onStatus("Audio route reset failed: ${e.message}")     // the old route may linger; teardown goes on
+        }
         scoDevice = null
         audioManager.mode = AudioManager.MODE_NORMAL
         current = "Speaker"
@@ -134,7 +140,9 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
             handler.post { onBluetoothHeadset?.invoke(bluetooth) }
         }
         if (passive) return                                   // Telecom is routing; it reports the label itself
+        val earpiece = headset == null && policy == Policy.EARPIECE
         val label = when {
+            earpiece -> "Earpiece"
             headset == null -> "Speaker"
             bluetooth -> "Headset · " + headset.productName.toString().trim().ifEmpty { "Bluetooth" }
             else -> "Wired headset"
@@ -151,15 +159,16 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
                     else { audioManager.clearCommunicationDevice(); current = "Speaker" }
                 } else {
                     audioManager.clearCommunicationDevice()
-                    audioManager.availableCommunicationDevices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                    val type = if (earpiece) AudioDeviceInfo.TYPE_BUILTIN_EARPIECE else AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                    audioManager.availableCommunicationDevices.firstOrNull { it.type == type }
                         ?.let { audioManager.setCommunicationDevice(it) }
                 }
             } else {
                 @Suppress("DEPRECATION")
                 when {
-                    headset == null -> {
+                    headset == null -> {   // speakerphone on, or off for the earpiece
                         if (scoDevice != null) { audioManager.stopBluetoothSco(); audioManager.isBluetoothScoOn = false; scoDevice = null }
-                        audioManager.isSpeakerphoneOn = true
+                        audioManager.isSpeakerphoneOn = !earpiece
                     }
                     bluetooth -> {
                         audioManager.isSpeakerphoneOn = false

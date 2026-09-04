@@ -67,7 +67,7 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   communication device: Bluetooth SCO headset, else wired/USB headset, else speakerphone
   (`setCommunicationDevice` on API 31+, `startBluetoothSco`/`isSpeakerphoneOn` below). It
   re-applies on every `AudioDeviceCallback` event and on a policy change; setting `audio_route`
-  (auto | speaker) is pushed into the engine with the other live settings.
+  (auto | speaker | earpiece) is pushed into the engine with the other live settings.
 - Bluetooth headsets: measured on a Jabra Evolve2 65 + S25. With SCO up and no call, a tap is
   an AVRCP PLAY that reaches our `MediaSession` (good); the headset sometimes sends AT+CHUP
   (hang-up) instead, and with no call to hang up Android drops the SCO link and does not
@@ -85,9 +85,13 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   by level, muted and quiet are the same ~2 RMS (its own noise suppression) with ~20 RMS spikes
   once a second, speech 200-1900. So the engine runs an always-on `monitor` capture while a
   Bluetooth headset is the route and `audio/MicGate` (pure, tested) keys the mic after 2 frames
-  above 80 RMS and un-keys after 75 frames below 40; a 5-frame pre-roll is sent on open.
+  above 80 RMS and un-keys after 75 frames below 40 (300/120 on the phone's own mic:
+  `MicGate.tune`); a 5-frame pre-roll is sent on open. On the phone's mic the voice-call path
+  levels close talk (400-1150 peaks) and a talker a metre away (1500-1900) to the same range,
+  so the earpiece route arms the gate only while the proximity sensor reads near (`atEar`).
   `startTalking` skips opening its own capture while the monitor runs and `sendFrame` is fed
-  from it. Off by default. Cue tones (`cue_tones`) are off by default too.
+  from it. Off by default, except that the `earpiece` route always runs it (the phone is at
+  the ear, the screen out of reach). Cue tones (`cue_tones`) are off by default too.
 - Hardware talk button: `PttService` holds a `MediaSession` while on channel; headset/media
   buttons arrive as media button events, the volume keys through a remote `VolumeProvider`
   (the only way to get them with the screen off). Headset presses carry press and release, so

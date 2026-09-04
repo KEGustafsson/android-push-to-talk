@@ -16,9 +16,15 @@ class MicGate {
     enum class Change { OPEN, CLOSE }
 
     /** RMS a frame must exceed, [ATTACK_FRAMES] in a row, to open. */
-    var openRms = 80.0
+    var openRms = HEADSET_OPEN
     /** RMS below which a frame counts as quiet while open. */
-    var closeRms = 40.0
+    var closeRms = HEADSET_CLOSE
+
+    /** Thresholds for the mic in use: a noise-suppressed headset boom, or the phone's own mic held to the mouth. */
+    fun tune(phoneMic: Boolean) {
+        openRms = if (phoneMic) PHONE_OPEN else HEADSET_OPEN
+        closeRms = if (phoneMic) PHONE_CLOSE else HEADSET_CLOSE
+    }
 
     var open = false
         private set
@@ -48,6 +54,15 @@ class MicGate {
         const val ATTACK_FRAMES = 2
         /** 1.5 s of quiet closes: a pause between words does not. */
         const val HANG_FRAMES = 75
+        /** A headset boom with its own noise suppression: ~2 RMS quiet, ~20 spikes, speech 200-1900. */
+        const val HEADSET_OPEN = 80.0
+        const val HEADSET_CLOSE = 40.0
+        /**
+         * The phone's own mic through the voice-call path (gain levelled): close talk peaks
+         * 400-1150 per half second, a quiet table 0-190. Armed only at the ear, see the engine.
+         */
+        const val PHONE_OPEN = 300.0
+        const val PHONE_CLOSE = 120.0
 
         fun rms(frame: ByteArray): Double {
             var acc = 0.0

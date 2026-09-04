@@ -48,6 +48,7 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
         if (running) return
         running = true
         concealedFrames.set(0)
+        synchronized(cues) { cues.clear() }
         playback.start()
         worker = thread(name = "ptt-mixer") {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
@@ -132,8 +133,10 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
 
     /** Plays [frames] (see [Tones]) from the next slot on, over whatever else is sounding. */
     fun cue(frames: List<ByteArray>) {
-        if (!running) return
-        synchronized(cues) { for (f in frames) if (f.size == AudioConfig.FRAME_BYTES) cues.addLast(f) }
+        synchronized(cues) {
+            if (!running) return                                  // checked under the lock: stop() clears under it too
+            for (f in frames) if (f.size == AudioConfig.FRAME_BYTES) cues.addLast(f)
+        }
     }
 
     fun stop() {
