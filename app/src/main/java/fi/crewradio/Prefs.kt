@@ -62,6 +62,9 @@ class Prefs(context: Context) {
     val hops: Int get() = sp.getString(KEY_HOPS, null)?.trim()?.takeIf { SettingsRules.validHops(it) }?.toInt() ?: SettingsRules.DEFAULT_HOPS
 
     val fullDuplex: Boolean get() = sp.getBoolean(KEY_FULL_DUPLEX, false)
+    /** Which physical buttons key the mic while on channel: off, headset, volume or both. */
+    val hwButton: String get() = sp.getString(KEY_HW_BUTTON, HW_BOTH) ?: HW_BOTH
+    val keepScreenOn: Boolean get() = sp.getBoolean(KEY_KEEP_SCREEN_ON, true)
     val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
     val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
 
@@ -79,6 +82,12 @@ class Prefs(context: Context) {
         const val KEY_PASSPHRASE = "aware_passphrase"
         const val KEY_HOPS = "max_hops"
 
+        const val KEY_HW_BUTTON = "hw_button"
+        const val HW_OFF = "off"
+        const val HW_HEADSET = "headset"
+        const val HW_VOLUME = "volume"
+        const val HW_BOTH = "both"
+        const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_FULL_DUPLEX = "full_duplex"
         const val KEY_RELAY = "relay"
         const val KEY_OPUS = "opus"

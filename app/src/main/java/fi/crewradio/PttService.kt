@@ -9,7 +9,13 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
+import android.media.VolumeProvider
 import android.net.wifi.WifiManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.view.KeyEvent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -61,6 +67,7 @@ class PttService : Service() {
     @Volatile var rosterListener: ((List<Peer>) -> Unit)? = null
 
     private val binder = LocalBinder()
+    private var mediaSession: MediaSession? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val wifiLocks = mutableListOf<WifiManager.WifiLock>()
 
@@ -101,11 +108,13 @@ class PttService : Service() {
         }
         acquireLocks()
         engine.connect(transports)
+        refreshHardwareButtons()
     }
 
     /** Stops the transports, releases the locks and leaves the foreground; safe to call when already idle. */
     fun disconnect() {
         val wasConnected = engine.isConnected
+        stopHardwareButtons()
         engine.disconnect()
         releaseLocks()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -130,6 +139,87 @@ class PttService : Service() {
         rosterListener?.invoke(peers)
         if (engine.isConnected) showForeground(lastStatus)
     }
+
+    // ---- hardware talk button --------------------------------------------------------
+
+    /**
+     * Keys the mic from physical buttons while on channel, screen on or off. A MediaSession
+     * in the playing state receives headset and media buttons; routing its volume to a remote
+     * VolumeProvider makes the volume keys arrive as well, which is the only way an app gets
+     * them with the screen off. Both toggle the mic: a headset click is a click, and holding
+     * a volume key just repeats it. A short buzz confirms on, a double buzz confirms off.
+     * Re-read the setting with [refreshHardwareButtons]; released on disconnect.
+     */
+    fun refreshHardwareButtons() {
+        val mode = Prefs(this).hwButton
+        if (!engine.isConnected || mode == Prefs.HW_OFF) { stopHardwareButtons(); return }
+        val headset = mode == Prefs.HW_HEADSET || mode == Prefs.HW_BOTH
+        val volume = mode == Prefs.HW_VOLUME || mode == Prefs.HW_BOTH
+        val session = mediaSession ?: MediaSession(this, "CrewRadio").also { s ->
+            s.setCallback(object : MediaSession.Callback() {
+                override fun onMediaButtonEvent(intent: Intent): Boolean {
+                    val ev = keyEvent(intent) ?: return false
+                    if (!headsetButtons) return false
+                    val ours = when (ev.keyCode) {
+                        KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                        KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> true
+                        else -> false
+                    }
+                    if (!ours) return false
+                    if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) hardwareToggle()
+                    return true
+                }
+            })
+            s.setPlaybackState(
+                PlaybackState.Builder()
+                    .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE)
+                    .setState(PlaybackState.STATE_PLAYING, 0, 1f)
+                    .build()
+            )
+            mediaSession = s
+        }
+        headsetButtons = headset
+        if (volume) {
+            session.setPlaybackToRemote(object : VolumeProvider(VOLUME_CONTROL_RELATIVE, 100, 50) {
+                override fun onAdjustVolume(direction: Int) {
+                    if (direction != 0) hardwareToggle()          // 0 is the system re-reading the level
+                }
+            })
+        } else {
+            session.setPlaybackToLocal(android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION).build())
+        }
+        session.isActive = true
+    }
+
+    private fun stopHardwareButtons() {
+        mediaSession?.let { it.isActive = false; it.release() }
+        mediaSession = null
+    }
+
+    @Volatile private var headsetButtons = false
+    private var lastHardwareToggleMs = 0L
+
+    /** One physical press = mic on, the next = mic off, with a buzz either way; presses closer than 300 ms are one press. */
+    private fun hardwareToggle() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastHardwareToggleMs < 300) return
+        lastHardwareToggleMs = now
+        engine.toggleTalking()
+        val on = engine.isTalking
+        buzz(if (on) longArrayOf(0, 40) else longArrayOf(0, 30, 80, 30))
+        onStatus(if (on) "Talk key: mic on" else "Talk key: mic off")   // also refreshes the disc on screen
+    }
+
+    private fun buzz(pattern: LongArray) {
+        val v = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator ?: return
+        try { v.vibrate(VibrationEffect.createWaveform(pattern, -1)) } catch (_: Exception) {}
+    }
+
+    @Suppress("DEPRECATION")
+    private fun keyEvent(intent: Intent): KeyEvent? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+        else intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
 
     // ---- foreground notification -------------------------------------------------
 

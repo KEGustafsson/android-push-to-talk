@@ -24,6 +24,19 @@
             app:defaultValue="false"
             app:summaryOn="The big button toggles the mic; everyone is heard at once. Best with a headset."
             app:summaryOff="Hold the big button to talk; others are muted while you hold it." />
+        <ListPreference
+            app:key="hw_button"
+            app:title="Talk button"
+            app:entries="@array/hw_button_entries"
+            app:entryValues="@array/hw_button_values"
+            app:defaultValue="both"
+            app:dialogTitle="Which buttons key the mic"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:key="keep_screen_on"
+            app:title="Keep screen on"
+            app:defaultValue="true"
+            app:summary="While on the channel. Turn off when a headset or the volume keys do the talking." />
         <SwitchPreferenceCompat
             app:key="relay"
             app:title="Relay"

@@ -121,7 +121,7 @@ class StatusActivity : AppCompatActivity() {
 
         // Packets
         val st = e?.stats()
-        card("PACKETS", if (on) "SINCE JOIN" else "").let { rows ->
+        card("PACKETS", if (on) "SINCE JOIN · " + kb((st?.rxBytes ?: 0) + (st?.txBytes ?: 0)) else "").let { rows ->
             rows.addView(tiles(
                 "RECEIVED" to (st?.rxPackets ?: 0).toString(),
                 "SENT" to (st?.txPackets ?: 0).toString(),
@@ -129,8 +129,8 @@ class StatusActivity : AppCompatActivity() {
             ))
             rows.addView(tiles(
                 "DUPLICATES" to (st?.duplicates ?: 0).toString(),
-                "HELLOS" to (st?.hellos ?: 0).toString(),
-                "DATA" to kb((st?.rxBytes ?: 0) + (st?.txBytes ?: 0))
+                "CONCEALED" to (st?.concealed ?: 0).toString(),
+                "HELLOS" to (st?.hellos ?: 0).toString()
             ))
         }
 

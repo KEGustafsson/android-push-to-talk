@@ -104,7 +104,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         prefs = Prefs(this)
         crewName = findViewById(R.id.crewName)
@@ -178,10 +177,12 @@ class MainActivity : AppCompatActivity() {
                 when (ev.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        fingerDown = true
                         e.startTalking()
                         refreshPttLabel()
                     }
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        fingerDown = false
                         e.stopTalking()
                         refreshPttLabel()
                     }
@@ -254,6 +255,7 @@ class MainActivity : AppCompatActivity() {
         e.codec = if (prefs.opus) Packet.Codec.OPUS else Packet.Codec.PCM
         e.maxHops = prefs.hops
         e.displayName = prefs.name ?: e.defaultName
+        service?.refreshHardwareButtons()
     }
 
     /**
@@ -270,15 +272,26 @@ class MainActivity : AppCompatActivity() {
         channelState.setTextColor(ContextCompat.getColor(this, if (connected) R.color.primary else R.color.text_dim))
         for (tile in tiles) tile.root.alpha = if (connected) 0.55f else 1f
         peerButton.alpha = if (connected) 0.55f else 1f
+        // The screen stays on only while on channel, and only if the user wants it to.
+        if (connected && prefs.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         refreshPttLabel()
     }
 
-    /** Disc caption and colours: teal and TALK while idle, red and ON AIR while the mic is live. */
+    private var fingerDown = false
+
+    /**
+     * Disc caption and colours: teal and TALK while idle, red and ON AIR while the mic is live.
+     * ON AIR without a finger on the disc means a talk key latched it, so the hint says how to stop.
+     */
     private fun refreshPttLabel() {
         val e = engine
         val live = e?.isTalking == true
         val (big, small) = when (e?.mode ?: PttEngine.Mode.HALF_DUPLEX) {
-            PttEngine.Mode.HALF_DUPLEX -> if (live) R.string.ptt_on_air to R.string.ptt_on_air_hint else R.string.ptt_talk to R.string.ptt_talk_hint
+            PttEngine.Mode.HALF_DUPLEX ->
+                if (!live) R.string.ptt_talk to R.string.ptt_talk_hint
+                else if (fingerDown) R.string.ptt_on_air to R.string.ptt_on_air_hint
+                else R.string.ptt_on_air to R.string.ptt_on_air_latched_hint
             PttEngine.Mode.FULL_DUPLEX -> if (live) R.string.ptt_mic_on to R.string.ptt_mic_on_hint else R.string.ptt_mic_off to R.string.ptt_mic_off_hint
         }
         val hintColor = ContextCompat.getColor(this, if (live) R.color.error else R.color.primary_container)

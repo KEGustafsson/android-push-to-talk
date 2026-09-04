@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import fi.crewradio.audio.AudioCapture
 import fi.crewradio.audio.AudioConfig
+import fi.crewradio.audio.Conceal
 import fi.crewradio.audio.Mixer
 import fi.crewradio.audio.OpusDecoder
 import fi.crewradio.audio.OpusEncoder
@@ -44,7 +45,9 @@ class Peer(
 class Stats(
     val rxPackets: Long, val rxBytes: Long,
     val txPackets: Long, val txBytes: Long,
-    val relayed: Long, val duplicates: Long, val hellos: Long
+    val relayed: Long, val duplicates: Long, val hellos: Long,
+    /** 20 ms slots the mixer filled with a faded repeat because the packet never came. */
+    val concealed: Long
 )
 
 /**
@@ -133,12 +136,13 @@ class PttEngine(
         val relayed = AtomicLong()
         val duplicates = AtomicLong()
         val hellos = AtomicLong()
-        fun snapshot() = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get())
+        fun snapshot(concealed: Long) = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get(), concealed)
     }
     @Volatile private var counters = Counters()
     @Volatile private var talking = false
 
     private val nodes = ConcurrentHashMap<Int, Node>()
+    private val lastSeq = ConcurrentHashMap<Int, Int>()             // per sender, every packet kind: gaps mean loss
     private var heartbeat: ScheduledExecutorService? = null
     @Volatile private var lastRoster: List<Peer> = emptyList()
     private var lastRosterKey = ""
@@ -199,11 +203,12 @@ class PttEngine(
         releaseDecoders()
         synchronized(seen) { seen.clear() }
         nodes.clear()
+        lastSeq.clear()
         publishRoster()
         audioManager.mode = AudioManager.MODE_NORMAL
     }
 
-    fun stats(): Stats = counters.snapshot()
+    fun stats(): Stats = counters.snapshot(mixer.concealedFrames.get())
 
     /** Keys the mic: opens the encoder (if Opus) and the capture; on failure everything is released again. */
     fun startTalking() {
@@ -287,11 +292,18 @@ class PttEngine(
             Packet.setTtl(p, ttl - 1)
             var forwarded = false
             for (t in transports) {
-                if (t === from) { if (t.relayWithin) { t.send(p, except = link); forwarded = true } }
-                else { t.send(p); forwarded = true }
+                if (t === from) { if (t.relayWithin && t.send(p, except = link)) forwarded = true }
+                else if (t.send(p)) forwarded = true
             }
             if (forwarded) c.relayed.incrementAndGet()
         }
+
+        // Hellos share the sender's sequence with its audio, so they keep the count moving between
+        // words; a gap therefore means real loss. A late packet has had its slot concealed already.
+        val prev = lastSeq[h.senderId]
+        if (prev != null && h.seq <= prev) return
+        lastSeq[h.senderId] = h.seq
+        val gap = if (prev == null) 0 else h.seq - prev - 1
 
         if (h.codec == Packet.Codec.HELLO) {
             c.hellos.incrementAndGet()
@@ -302,6 +314,7 @@ class PttEngine(
 
         if (packetCount.incrementAndGet() and 0xFF == 0) pruneDecoders()
         if (mode == Mode.HALF_DUPLEX && talking) return   // radio semantics
+        if (gap in 1..Conceal.MAX_FRAMES) mixer.conceal(h.senderId, gap)
 
         when (h.codec) {
             Packet.Codec.PCM -> mixer.push(h.senderId, p, Packet.HEADER, p.size - Packet.HEADER)
@@ -325,6 +338,7 @@ class PttEngine(
                 changed = true
             }
         }
+        lastSeq.keys.retainAll(nodes.keys)
         if (changed) publishRoster()
     }
 

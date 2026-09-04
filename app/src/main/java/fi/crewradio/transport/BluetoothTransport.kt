@@ -177,11 +177,14 @@ class BluetoothTransport(
         }
     }
 
-    override fun send(packet: ByteArray, except: Any?) {
+    override fun send(packet: ByteArray, except: Any?): Boolean {
+        var sent = false
         for (link in links) {
             if (link === except) continue
+            sent = true
             try { link.send(packet) } catch (_: IOException) { /* reader thread tears it down */ }
         }
+        return sent
     }
 
     override fun stop() {

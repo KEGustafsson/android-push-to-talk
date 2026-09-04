@@ -56,6 +56,14 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - The main screen shows only what matters while talking (head count, one status line, who is
   talking); `StatusActivity` (menu > Status) polls `engine.rosterNow`, `engine.stats()` and
   `service.statusLog` once a second for the detail. Keep diagnostics there, not on the main screen.
+- Loss concealment lives in `audio/Mixer` + `audio/Conceal`, not the codec: MediaCodec cannot
+  ask the AOSP Opus decoder for PLC (an empty buffer yields empty output). The engine tracks each
+  sender's sequence (hellos included, so it keeps moving between words) and tells the mixer how
+  many slots a gap left; the mixer fills them, and any queue that runs dry mid-talk, with the
+  last frame fading over at most three slots.
+- Hardware talk button: `PttService` holds a `MediaSession` while on channel; headset/media
+  buttons arrive as media button events, the volume keys through a remote `VolumeProvider`
+  (the only way to get them with the screen off). Both toggle the mic. Setting `hw_button`.
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
   transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
   decremented in place), then decode and play unless half-duplex and transmitting. Opus
@@ -79,6 +87,6 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-1. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
-2. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
-   letting the jitter queue underrun.
+1. Wi-Fi Direct transport for phones without Wi-Fi Aware.
+2. Audio routing: Bluetooth headset (SCO) instead of forcing speakerphone.
+3. A release pipeline: signing config, version bumps, an APK per merge.

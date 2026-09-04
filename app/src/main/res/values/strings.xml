@@ -25,6 +25,7 @@
     <string name="ptt_talk_hint">HOLD</string>
     <string name="ptt_on_air">ON AIR</string>
     <string name="ptt_on_air_hint">RELEASE TO LISTEN</string>
+    <string name="ptt_on_air_latched_hint">TAP OR KEY TO STOP</string>
     <string name="ptt_mic_on">MIC ON</string>
     <string name="ptt_mic_on_hint">TAP TO MUTE</string>
     <string name="ptt_mic_off">MIC OFF</string>
