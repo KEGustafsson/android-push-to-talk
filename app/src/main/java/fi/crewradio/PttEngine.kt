@@ -122,7 +122,8 @@ class PttEngine(
     private val decoders = ConcurrentHashMap<Int, OpusDecoder>()
     private val undecodable = ConcurrentHashMap.newKeySet<Int>()   // senders whose decoder failed; reported once
     private val packetCount = AtomicInteger()
-    private val seq = AtomicInteger()                                // shared by the audio thread and the heartbeat
+    private val audioSeq = AtomicInteger()                           // one per frame, so a gap in it is lost audio
+    private val helloSeq = AtomicInteger()                           // hellos count separately; they are not frames
     /**
      * Packet counters for one session. connect() starts a fresh set; a callback from a
      * transport that was still winding down keeps incrementing the old set, which nothing
@@ -142,7 +143,7 @@ class PttEngine(
     @Volatile private var talking = false
 
     private val nodes = ConcurrentHashMap<Int, Node>()
-    private val lastSeq = ConcurrentHashMap<Int, Int>()             // per sender, every packet kind: gaps mean loss
+    private val seqTracker = SeqTracker()                            // per sender audio sequence: gaps mean lost frames
     private var heartbeat: ScheduledExecutorService? = null
     @Volatile private var lastRoster: List<Peer> = emptyList()
     private var lastRosterKey = ""
@@ -158,15 +159,17 @@ class PttEngine(
         @Volatile var talking = false
     }
 
-    private val seenCapacity = 4096
-    private val seen = object : LinkedHashMap<Long, Boolean>(seenCapacity, 0.75f, false) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Boolean>?) = size > seenCapacity
+    private class SeenCache(private val capacity: Int) : LinkedHashMap<Long, Boolean>(capacity, 0.75f, false) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Boolean>?) = size > capacity
     }
+    private val seen = SeenCache(4096)          // audio: ~80 s of one talker, plenty for a relay echo
+    private val seenHellos = SeenCache(512)     // hellos: 1 Hz per node, their own sequence space
 
-    /** Returns true if this (sender, seq) is new. */
-    private fun markSeen(senderId: Int, seq: Int): Boolean {
+    /** Returns true if this (sender, seq) is new; hellos and audio number themselves independently. */
+    private fun markSeen(senderId: Int, seq: Int, codec: Packet.Codec): Boolean {
         val key = (senderId.toLong() shl 32) or (seq.toLong() and 0xFFFF_FFFFL)
-        synchronized(seen) { return seen.put(key, true) == null }
+        val cache = if (codec == Packet.Codec.HELLO) seenHellos else seen
+        synchronized(cache) { return cache.put(key, true) == null }
     }
 
     /** Starts playback and the given transports; any transport that fails to start is reported and dropped. */
@@ -202,8 +205,9 @@ class PttEngine(
         mixer.stop()
         releaseDecoders()
         synchronized(seen) { seen.clear() }
+        synchronized(seenHellos) { seenHellos.clear() }
         nodes.clear()
-        lastSeq.clear()
+        seqTracker.clear()
         publishRoster()
         audioManager.mode = AudioManager.MODE_NORMAL
     }
@@ -267,8 +271,8 @@ class PttEngine(
 
     /** Stamps and sends one of our own packets on every transport. */
     private fun broadcast(codec: Packet.Codec, payload: ByteArray) {
-        val s = seq.getAndIncrement()
-        markSeen(senderId, s)
+        val s = (if (codec == Packet.Codec.HELLO) helloSeq else audioSeq).getAndIncrement()
+        markSeen(senderId, s, codec)
         val packet = Packet.encode(senderId, s, codec, maxHops, payload)
         val c = counters
         c.txPackets.incrementAndGet()
@@ -282,7 +286,7 @@ class PttEngine(
         val c = counters                                  // this session's set, whatever happens meanwhile
         val h = Packet.parse(p) ?: return
         if (h.senderId == senderId) return
-        if (!markSeen(h.senderId, h.seq)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
+        if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
         c.rxPackets.incrementAndGet()
         c.rxBytes.addAndGet(p.size.toLong())
 
@@ -298,13 +302,6 @@ class PttEngine(
             if (forwarded) c.relayed.incrementAndGet()
         }
 
-        // Hellos share the sender's sequence with its audio, so they keep the count moving between
-        // words; a gap therefore means real loss. A late packet has had its slot concealed already.
-        val prev = lastSeq[h.senderId]
-        if (prev != null && h.seq <= prev) return
-        lastSeq[h.senderId] = h.seq
-        val gap = if (prev == null) 0 else h.seq - prev - 1
-
         if (h.codec == Packet.Codec.HELLO) {
             c.hellos.incrementAndGet()
             Hello.decode(p, Packet.HEADER, p.size - Packet.HEADER)?.let { heardHello(h.senderId, it, from, h.ttl) }
@@ -313,8 +310,18 @@ class PttEngine(
         heardAudio(h.senderId, from)
 
         if (packetCount.incrementAndGet() and 0xFF == 0) pruneDecoders()
-        if (mode == Mode.HALF_DUPLEX && talking) return   // radio semantics
-        if (gap in 1..Conceal.MAX_FRAMES) mixer.conceal(h.senderId, gap)
+        val playing = !(mode == Mode.HALF_DUPLEX && talking)   // radio semantics: not while we transmit
+
+        // Audio frames number themselves consecutively, so a gap is lost audio and its slots are
+        // reserved before this frame is queued. Admission and reservation stay atomic per sender:
+        // the same sender's frames can arrive on several transport threads at once. A late frame
+        // is dropped, its slot was concealed already.
+        synchronized(seqTracker) {
+            val gap = seqTracker.admit(h.senderId, h.seq)
+            if (gap < 0) return
+            if (playing && gap in 1..Conceal.MAX_FRAMES) mixer.conceal(h.senderId, gap)
+        }
+        if (!playing) return
 
         when (h.codec) {
             Packet.Codec.PCM -> mixer.push(h.senderId, p, Packet.HEADER, p.size - Packet.HEADER)
@@ -338,7 +345,7 @@ class PttEngine(
                 changed = true
             }
         }
-        lastSeq.keys.retainAll(nodes.keys)
+        seqTracker.retain(nodes.keys)
         if (changed) publishRoster()
     }
 

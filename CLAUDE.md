@@ -36,6 +36,7 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.
   Codec 0 = PCM16LE frame, 1 = Opus packet, 2 = `Hello` roster heartbeat (no audio; older
   builds drop it as unknown, so it needed no version bump). Receivers decode per packet, so codecs can mix.
+  `seq` is per sender and per kind: audio frames count in one sequence, hellos in another.
 - `Transport` interface: `start(onPacket, onStatus)`, `send(packet, except)`, `stop()`,
   `relayWithin` (false for multicast). Stream transports frame packets with
   `StreamLink` (uint16 BE length prefix). A transport whose `start` throws is reported
@@ -57,10 +58,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   talking); `StatusActivity` (menu > Status) polls `engine.rosterNow`, `engine.stats()` and
   `service.statusLog` once a second for the detail. Keep diagnostics there, not on the main screen.
 - Loss concealment lives in `audio/Mixer` + `audio/Conceal`, not the codec: MediaCodec cannot
-  ask the AOSP Opus decoder for PLC (an empty buffer yields empty output). The engine tracks each
-  sender's sequence (hellos included, so it keeps moving between words) and tells the mixer how
-  many slots a gap left; the mixer fills them, and any queue that runs dry mid-talk, with the
-  last frame fading over at most three slots.
+  ask the AOSP Opus decoder for PLC (an empty buffer yields empty output). Audio frames and hellos
+  number themselves independently (two seen-caches), so a gap in a sender's audio sequence is lost
+  audio: `SeqTracker` (pure, wrap-aware, tested) admits each frame and reports the gap, the engine
+  reserves that many slots in the mixer atomically with the admission, and the mixer fills them,
+  and any queue that runs dry mid-talk, with the last frame fading over at most three slots.
 - Hardware talk button: `PttService` holds a `MediaSession` while on channel; headset/media
   buttons arrive as media button events, the volume keys through a remote `VolumeProvider`
   (the only way to get them with the screen off). Both toggle the mic. Setting `hw_button`.

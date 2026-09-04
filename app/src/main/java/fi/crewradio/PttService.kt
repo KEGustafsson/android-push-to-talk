@@ -198,17 +198,27 @@ class PttService : Service() {
     }
 
     @Volatile private var headsetButtons = false
-    private var lastHardwareToggleMs = 0L
+    private val hardwareLock = Any()
+    private var lastHardwareEventMs = 0L
 
-    /** One physical press = mic on, the next = mic off, with a buzz either way; presses closer than 300 ms are one press. */
+    /**
+     * One physical press = mic on, the next = mic off, with a buzz either way. A held volume
+     * key autorepeats, so every event stamps the clock and only a press after a quiet
+     * [PRESS_GAP_MS] counts: a hold is one press, however long.
+     */
     private fun hardwareToggle() {
         val now = android.os.SystemClock.elapsedRealtime()
-        if (now - lastHardwareToggleMs < 300) return
-        lastHardwareToggleMs = now
-        engine.toggleTalking()
-        val on = engine.isTalking
-        buzz(if (on) longArrayOf(0, 40) else longArrayOf(0, 30, 80, 30))
-        onStatus(if (on) "Talk key: mic on" else "Talk key: mic off")   // also refreshes the disc on screen
+        synchronized(hardwareLock) {
+            val quiet = now - lastHardwareEventMs >= PRESS_GAP_MS
+            lastHardwareEventMs = now
+            if (!quiet) return
+            val wasTalking = engine.isTalking
+            engine.toggleTalking()
+            val on = engine.isTalking
+            if (!wasTalking && !on) return                // mic failed to start: the engine has reported why
+            buzz(if (on) longArrayOf(0, 40) else longArrayOf(0, 30, 80, 30))
+            onStatus(if (on) "Talk key: mic on" else "Talk key: mic off")   // also refreshes the disc on screen
+        }
     }
 
     private fun buzz(pattern: LongArray) {
@@ -320,6 +330,12 @@ class PttService : Service() {
     }
 
     companion object {
+        /**
+         * Quiet time that separates two hardware presses. A held key autorepeats only after the
+         * long-press timeout (user-adjustable under Accessibility) and then every few tens of
+         * ms, so anything within that timeout plus a margin is the same press still held.
+         */
+        private val PRESS_GAP_MS = android.view.ViewConfiguration.getKeyRepeatTimeout() + 150L
         const val ACTION_DISCONNECT = "fi.crewradio.action.DISCONNECT"
         private const val CHANNEL_ID = "ptt"
         private const val NOTIFICATION_ID = 1
