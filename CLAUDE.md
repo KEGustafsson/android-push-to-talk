@@ -1,6 +1,7 @@
-# PTT — project guide for Claude Code
+# Crew Radio — project guide for Claude Code
 
-Android push-to-talk / intercom app for a boat crew (vessel Arabella). Works over
+Android push-to-talk / intercom app for a boat crew (package `fi.crewradio`, app name
+"Crew Radio"; the boat or crew name is the Channel name setting, shown in the header). Works over
 WLAN multicast, Bluetooth Classic RFCOMM and Wi-Fi Aware, with an app-level
 flooding relay so multiple transports and multi-hop topologies work.
 
@@ -26,6 +27,12 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   Wi-Fi lock for the duration of a session. Owns the engine; the notification mirrors the
   status line and has a Disconnect action. The activity never disconnects on its own
   lifecycle, only on the button or the notification action.
+- Settings: `SettingsActivity` is a stock `PreferenceFragmentCompat` over the default
+  SharedPreferences; `Prefs` reads them with validated fallbacks and `SettingsRules` holds the
+  pure, unit-tested validation. Duplex mode, relay, codec, name and hop limit are pushed into
+  the engine on every bind and resume (the settings, not the engine, are the source of truth);
+  group/port/passphrase are constructor arguments of the transports, so they need a reconnect.
+  Sample rate is deliberately not a setting: 16 kHz is baked into the Opus path and the decimator.
 - `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.
   Codec 0 = PCM16LE frame, 1 = Opus packet, 2 = `Hello` roster heartbeat (no audio; older
   builds drop it as unknown, so it needed no version bump). Receivers decode per packet, so codecs can mix.
@@ -46,6 +53,9 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   audio packet refreshes the sender's `Node` (name, transports, via, hops, talking). Silent for
   4 s = dropped. `onRoster` fires only when the rendered list changes; the service mirrors the
   head count into the notification title. Display name = Android device name, else `Build.MODEL`.
+- The main screen shows only what matters while talking (head count, one status line, who is
+  talking); `StatusActivity` (menu > Status) polls `engine.rosterNow`, `engine.stats()` and
+  `service.statusLog` once a second for the detail. Keep diagnostics there, not on the main screen.
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
   transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
   decremented in place), then decode and play unless half-duplex and transmitting. Opus
@@ -69,7 +79,6 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-1. Settings screen: multicast group/port, Aware passphrase, sample rate, hop limit.
-2. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
-3. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
+1. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
+2. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
    letting the jitter queue underrun.

@@ -1,0 +1,92 @@
+package fi.crewradio
+
+import android.content.Context
+import androidx.preference.PreferenceManager
+import fi.crewradio.audio.AudioConfig
+
+/**
+ * What a setting may be. Pure Kotlin so the rules are unit-tested; [SettingsActivity]
+ * uses them to refuse bad input and [Prefs] to fall back to a default if a bad value
+ * ever reaches storage anyway.
+ */
+object SettingsRules {
+    const val DEFAULT_GROUP = "239.255.42.1"
+    const val DEFAULT_PORT = 47474
+    const val DEFAULT_PASSPHRASE = "crew-radio"
+    const val DEFAULT_HOPS = AudioConfig.DEFAULT_TTL
+
+    /** Empty means "use the device name"; otherwise it has to fit a [Hello] and stay on one line. */
+    fun validName(s: String): Boolean =
+        s.trim().toByteArray(Charsets.UTF_8).size <= Hello.MAX_NAME_BYTES && s.none { it == '\r' || it == '\n' }
+
+    /** An IPv4 multicast address: dotted quad, first octet 224–239. */
+    fun validGroup(s: String): Boolean {
+        val parts = s.trim().split('.')
+        if (parts.size != 4) return false
+        val octets = parts.map { it.toIntOrNull() ?: return false }
+        return octets.all { it in 0..255 } && octets[0] in 224..239
+    }
+
+    /** An unprivileged port. */
+    fun validPort(s: String): Boolean = s.trim().toIntOrNull()?.let { it in 1024..65535 } == true
+
+    /** What WifiAwareNetworkSpecifier.setPskPassphrase accepts: 8–63 printable ASCII characters. */
+    fun validPassphrase(s: String): Boolean =
+        s.length in 8..63 && s.all { it.code in 0x20..0x7E }
+
+    /** The header name: short enough to stay on one line at 30 sp. Empty means the app name. */
+    fun validCrewName(s: String): Boolean = s.trim().length <= 24 && s.none { it == '\r' || it == '\n' }
+
+    /** Relays a packet may cross; 1 means no relaying at all. */
+    fun validHops(s: String): Boolean = s.trim().toIntOrNull()?.let { it in 1..16 } == true
+}
+
+/**
+ * Typed access to the app's SharedPreferences: the settings screen's values, with
+ * defaults, plus the main screen's last choices so the crew can open the app and
+ * press Connect. The settings screen writes the same file through the preference
+ * framework, which is why the keys live here.
+ */
+class Prefs(context: Context) {
+    private val sp = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
+    private val appName = context.getString(R.string.app_name)
+
+    /** What the header shows: the crew or boat name, else the app name. */
+    val crewName: String get() = sp.getString(KEY_CREW_NAME, null)?.trim()?.takeIf { it.isNotEmpty() && SettingsRules.validCrewName(it) } ?: appName
+
+    /** The name to announce, or null to use the device name. */
+    val name: String? get() = sp.getString(KEY_NAME, null)?.trim()?.takeIf { it.isNotEmpty() && SettingsRules.validName(it) }
+    val group: String get() = sp.getString(KEY_GROUP, null)?.trim()?.takeIf { SettingsRules.validGroup(it) } ?: SettingsRules.DEFAULT_GROUP
+    val port: Int get() = sp.getString(KEY_PORT, null)?.trim()?.takeIf { SettingsRules.validPort(it) }?.toInt() ?: SettingsRules.DEFAULT_PORT
+    val passphrase: String get() = sp.getString(KEY_PASSPHRASE, null)?.takeIf { SettingsRules.validPassphrase(it) } ?: SettingsRules.DEFAULT_PASSPHRASE
+    val hops: Int get() = sp.getString(KEY_HOPS, null)?.trim()?.takeIf { SettingsRules.validHops(it) }?.toInt() ?: SettingsRules.DEFAULT_HOPS
+
+    val fullDuplex: Boolean get() = sp.getBoolean(KEY_FULL_DUPLEX, false)
+    val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
+    val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
+
+    fun bool(key: String, default: Boolean): Boolean = sp.getBoolean(key, default)
+    fun string(key: String): String? = sp.getString(key, null)
+    fun put(key: String, value: Boolean) = sp.edit().putBoolean(key, value).apply()
+    fun put(key: String, value: String?) = sp.edit().putString(key, value).apply()
+
+    companion object {
+        // Settings screen (see res/xml/preferences.xml — the keys must match).
+        const val KEY_CREW_NAME = "crew_name"
+        const val KEY_NAME = "display_name"
+        const val KEY_GROUP = "multicast_group"
+        const val KEY_PORT = "lan_port"
+        const val KEY_PASSPHRASE = "aware_passphrase"
+        const val KEY_HOPS = "max_hops"
+
+        const val KEY_FULL_DUPLEX = "full_duplex"
+        const val KEY_RELAY = "relay"
+        const val KEY_OPUS = "opus"
+
+        // Main screen state.
+        const val KEY_USE_LAN = "use_lan"
+        const val KEY_USE_BT = "use_bt"
+        const val KEY_USE_AWARE = "use_aware"
+        const val KEY_BT_PEER = "bt_peer"          // MAC address, or empty for "listen only"
+    }
+}

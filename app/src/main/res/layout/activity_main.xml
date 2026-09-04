@@ -1,77 +1,209 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:background="@color/surface"
     android:padding="16dp">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Transports (pick one or more — several = this phone bridges them)" />
-
+    <!-- Header: channel name, who is aboard, menu. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
-        <CheckBox android:id="@+id/checkLan" android:text="WLAN" android:checked="true"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
-        <CheckBox android:id="@+id/checkBt" android:text="Bluetooth"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
-        <CheckBox android:id="@+id/checkAware" android:text="Wi‑Fi Aware"
-            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/channelLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/crew_channel"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"
+                android:textSize="12sp"
+                android:textColor="@color/text_teal_dim"
+                android:maxLines="1"
+                android:ellipsize="end" />
+            <TextView
+                android:id="@+id/crewName"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:gravity="center_vertical"
+                android:text="@string/app_name"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="0.1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="14sp"
+                android:autoSizeMaxTextSize="27sp"
+                android:autoSizeStepGranularity="1sp"
+                android:textColor="@color/primary"
+                android:maxLines="1"
+                android:layout_marginEnd="8dp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/peersBox"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:background="@drawable/bg_outline">
+            <ImageView
+                android:id="@+id/peersIcon"
+                android:layout_width="22dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_signal"
+                app:tint="@color/primary"
+                android:contentDescription="@null" />
+            <TextView
+                android:id="@+id/peerCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="0"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="18sp"
+                android:textColor="@color/text" />
+        </LinearLayout>
+        <ImageButton
+            android:id="@+id/menuButton"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="4dp"
+            android:src="@drawable/ic_more_vert"
+            app:tint="@color/secondary"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_settings" />
     </LinearLayout>
 
-    <Spinner
-        android:id="@+id/btDevices"
+    <!-- Transport tiles. -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="76dp"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/tileLan"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_tile_off">
+            <ImageView android:id="@+id/tileLanIcon" android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_wifi" android:contentDescription="@null" />
+            <TextView android:id="@+id/tileLanLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/tile_lan" android:fontFamily="monospace" android:letterSpacing="0.08" android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tileBt"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_tile_off">
+            <ImageView android:id="@+id/tileBtIcon" android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_bluetooth" android:contentDescription="@null" />
+            <TextView android:id="@+id/tileBtLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/tile_bt" android:fontFamily="monospace" android:letterSpacing="0.08" android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tileAware"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_tile_off">
+            <ImageView android:id="@+id/tileAwareIcon" android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_aware" android:contentDescription="@null" />
+            <TextView android:id="@+id/tileAwareLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/tile_aware" android:fontFamily="monospace" android:letterSpacing="0.08" android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Bluetooth peer, only while Bluetooth is on. -->
+    <TextView
+        android:id="@+id/peerButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.06"
+        android:textSize="13sp"
+        android:textColor="@color/secondary"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:background="@drawable/bg_outline"
         android:visibility="gone" />
 
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/duplexSwitch"
+    <!-- The channel switch: on it or off it, said quietly. The whole row toggles. -->
+    <LinearLayout
+        android:id="@+id/channelRow"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Full duplex (talk and listen at the same time)" />
+        android:layout_height="52dp"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:background="@drawable/bg_outline"
+        android:clickable="true"
+        android:focusable="true">
+        <TextView
+            android:id="@+id/channelState"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.08"
+            android:textSize="13sp"
+            android:textColor="@color/text_dim"
+            android:maxLines="1"
+            android:ellipsize="end" />
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/channelSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp" />
+    </LinearLayout>
 
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/relaySwitch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Relay (forward others' audio, mesh mode)" />
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/opusSwitch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Opus compression (about 10x less bandwidth)" />
-
-    <Button
-        android:id="@+id/connectButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Connect" />
-
-    <TextView
-        android:id="@+id/status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="8dp"
-        android:text="Idle" />
-
-    <TextView
-        android:id="@+id/roster"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="4dp"
-        android:textSize="14sp" />
-
-    <Button
-        android:id="@+id/pttButton"
+    <!-- The talk disc: as large a circle as the remaining space allows (sized in code to min(w, h)). -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/talkArea"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="16dp"
-        android:textSize="32sp"
-        android:text="HOLD TO TALK" />
+        android:layout_marginTop="8dp">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/pttButton"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            android:fontFamily="monospace"
+            android:textSize="40sp"
+            android:letterSpacing="0.14"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:text="@string/ptt_talk"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.PTT.Circle"
+            app:strokeWidth="12dp"
+            app:strokeColor="@color/outline"
+            app:backgroundTint="@color/primary"
+            android:textColor="@color/on_primary"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </LinearLayout>

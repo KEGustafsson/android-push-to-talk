@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="Me">
+        <EditTextPreference
+            app:key="display_name"
+            app:title="My name"
+            app:dialogMessage="What the others see in their crew list, e.g. Skipper. Leave empty to use the name of this phone. Up to 32 bytes; applies immediately."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Channel">
+        <EditTextPreference
+            app:key="crew_name"
+            app:title="Channel name"
+            app:dialogMessage="Shown large at the top of the main screen: the boat or the crew, e.g. ARABELLA. Up to 24 characters; empty shows the app name."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Talking">
+        <SwitchPreferenceCompat
+            app:key="full_duplex"
+            app:title="Full duplex"
+            app:defaultValue="false"
+            app:summaryOn="The big button toggles the mic; everyone is heard at once. Best with a headset."
+            app:summaryOff="Hold the big button to talk; others are muted while you hold it." />
+        <SwitchPreferenceCompat
+            app:key="relay"
+            app:title="Relay"
+            app:defaultValue="true"
+            app:summary="Forward what this phone hears to its other links, so phones out of each other's range still connect through it. Leave on." />
+        <SwitchPreferenceCompat
+            app:key="opus"
+            app:title="Opus compression"
+            app:defaultValue="true"
+            app:summary="About a tenth of the bandwidth of raw audio. Falls back to raw by itself if this phone cannot encode Opus. Applies the next time the mic is keyed." />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="WLAN — takes effect on the next Connect">
+        <EditTextPreference
+            app:key="multicast_group"
+            app:title="Multicast group"
+            app:defaultValue="239.255.42.1"
+            app:dialogMessage="An IPv4 multicast address, 224.0.0.0 to 239.255.255.255. Every phone on the crew must use the same one."
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:key="lan_port"
+            app:title="UDP port"
+            app:defaultValue="47474"
+            app:dialogMessage="1024 to 65535, the same on every phone."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Wi‑Fi Aware — takes effect on the next Connect">
+        <EditTextPreference
+            app:key="aware_passphrase"
+            app:title="Passphrase"
+            app:defaultValue="crew-radio"
+            app:dialogMessage="8 to 63 plain ASCII characters. Phones only link up when it matches, so it doubles as the crew name."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="Mesh">
+        <EditTextPreference
+            app:key="max_hops"
+            app:title="Hop limit"
+            app:defaultValue="4"
+            app:dialogMessage="How many relays a packet may cross, 1 to 16. Also caps what this phone forwards for others. Applies immediately."
+            app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+</PreferenceScreen>
