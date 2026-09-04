@@ -50,22 +50,26 @@ class PttService : Service() {
 
     private val binder = LocalBinder()
     private var wakeLock: PowerManager.WakeLock? = null
-    private var wifiLock: WifiManager.WifiLock? = null
+    private val wifiLocks = mutableListOf<WifiManager.WifiLock>()
 
+    /** Creates the engine and the notification channel; the engine lives as long as the service. */
     override fun onCreate() {
         super.onCreate()
         engine = PttEngine(this, ::onStatus)
         createChannel()
     }
 
+    /** Hands the activity a local binder; the service is in-process only. */
     override fun onBind(intent: Intent?): IBinder = binder
 
+    /** Handles the notification's Disconnect action; plain starts (from [connect]) need no work here. */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_DISCONNECT) disconnect()
         // A restart after the process was killed has no transports to resume; stay dead.
         return START_NOT_STICKY
     }
 
+    /** Last line of defence: tear the session down if the system destroys the service. */
     override fun onDestroy() {
         engine.disconnect()
         releaseLocks()
@@ -87,6 +91,7 @@ class PttService : Service() {
         engine.connect(transports)
     }
 
+    /** Stops the transports, releases the locks and leaves the foreground; safe to call when already idle. */
     fun disconnect() {
         val wasConnected = engine.isConnected
         engine.disconnect()
@@ -96,6 +101,7 @@ class PttService : Service() {
         if (wasConnected) onStatus("Disconnected")
     }
 
+    /** Engine status sink: remembers the line, forwards it to the UI and mirrors it in the notification. */
     private fun onStatus(msg: String) {
         lastStatus = msg
         statusListener?.invoke(msg)
@@ -109,6 +115,7 @@ class PttService : Service() {
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(text), foregroundTypes())
     }
 
+    /** Foreground service types to declare: always connectedDevice, plus microphone where the API has it. */
     private fun foregroundTypes(): Int {
         var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
         // Mic access from the background needs the microphone type on Android 11+.
@@ -116,6 +123,7 @@ class PttService : Service() {
         return types
     }
 
+    /** Silent, ongoing notification: tap opens the activity, the action disconnects. */
     private fun buildNotification(text: String): Notification {
         val flags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         val open = PendingIntent.getActivity(
@@ -143,6 +151,7 @@ class PttService : Service() {
             .build()
     }
 
+    /** Low-importance channel so the ongoing notification never makes a sound. */
     private fun createChannel() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
@@ -153,27 +162,46 @@ class PttService : Service() {
 
     // ---- wake / Wi-Fi locks --------------------------------------------------------
 
+    /**
+     * Keeps the CPU and the Wi-Fi radio awake for the session. Idempotent.
+     *
+     * Wi-Fi needs two locks because of how the platform scopes them:
+     * - FULL_LOW_LATENCY only takes effect while the screen is on and the app is in the foreground.
+     * - FULL_HIGH_PERF keeps the radio out of power save with the screen off or the app in the
+     *   background, which is what LAN multicast and Aware links need during a screen-off session.
+     * Holding both is the documented combination: low latency wins while visible, high perf
+     * otherwise. Android 14 deprecates HIGH_PERF and silently turns it into a LOW_LATENCY lock,
+     * so there it adds nothing and is skipped; screen-off Wi-Fi then runs in normal power save.
+     */
     @SuppressLint("WakelockTimeout") // held for the whole session, released in disconnect()
     private fun acquireLocks() {
         if (wakeLock == null) {
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ptt:engine").also { it.acquire() }
         }
-        if (wifiLock == null) {
+        if (wifiLocks.isEmpty()) {
             val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            // Keeps the Wi-Fi radio out of power save while the screen is off; LAN and Aware both need it.
-            wifiLock = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_LOW_LATENCY, "ptt:wifi").also {
-                it.setReferenceCounted(false)
-                it.acquire()
+            val modes = mutableListOf(WifiManager.WIFI_MODE_FULL_LOW_LATENCY)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) modes += highPerfWifiMode()
+            for (mode in modes) {
+                wifiLocks += wm.createWifiLock(mode, "ptt:wifi:$mode").also {
+                    it.setReferenceCounted(false)
+                    it.acquire()
+                }
             }
         }
     }
 
+    /** Isolated so the deprecation (API 34, where it aliases LOW_LATENCY anyway) is suppressed in one place. */
+    @Suppress("DEPRECATION")
+    private fun highPerfWifiMode(): Int = WifiManager.WIFI_MODE_FULL_HIGH_PERF
+
+    /** Releases whatever [acquireLocks] took; safe when nothing is held. */
     private fun releaseLocks() {
         wakeLock?.let { if (it.isHeld) it.release() }
         wakeLock = null
-        wifiLock?.let { if (it.isHeld) it.release() }
-        wifiLock = null
+        for (lock in wifiLocks) if (lock.isHeld) lock.release()
+        wifiLocks.clear()
     }
 
     companion object {

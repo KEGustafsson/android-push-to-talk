@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var pairedDevices: List<BluetoothDevice> = emptyList()
 
     private val connection = object : ServiceConnection {
+        /** Adopts the service's engine and pulls its current state into the widgets. */
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             val s = (binder as PttService.LocalBinder).service
             service = s
@@ -59,11 +60,13 @@ class MainActivity : AppCompatActivity() {
             syncUi()
         }
 
+        /** Only reached if the service process dies; controls become no-ops until rebound. */
         override fun onServiceDisconnected(name: ComponentName) {
             service = null
         }
     }
 
+    /** Wires the widgets; everything that needs the engine goes through [service], which arrives on bind. */
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,11 +125,13 @@ class MainActivity : AppCompatActivity() {
         refreshPttLabel()
     }
 
+    /** Binds while visible; BIND_AUTO_CREATE means the service (and its senderId) exists whenever the UI is up. */
     override fun onStart() {
         super.onStart()
         bindService(Intent(this, PttService::class.java), connection, Context.BIND_AUTO_CREATE)
     }
 
+    /** Unbinds without touching the session: a connected service keeps running as a started foreground service. */
     override fun onStop() {
         service?.statusListener = null
         service = null
@@ -134,6 +139,7 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    /** Builds the selected transports and hands them to the service. */
     private fun connect(s: PttService) {
         val ctx = applicationContext
         val list = mutableListOf<Transport>()
@@ -160,6 +166,7 @@ class MainActivity : AppCompatActivity() {
         refreshPttLabel()
     }
 
+    /** Big-button caption for the current mode and mic state. */
     private fun refreshPttLabel() {
         val e = engine
         pttButton.text = when (e?.mode ?: PttEngine.Mode.HALF_DUPLEX) {
@@ -168,6 +175,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Fills the Bluetooth spinner with bonded devices; index 0 is "listen only". */
     @SuppressLint("MissingPermission")
     private fun loadPairedDevices() {
         if (!hasPermissions()) { requestPermissions(); return }
@@ -191,10 +199,12 @@ class MainActivity : AppCompatActivity() {
     private fun optionalPermissions(): Array<String> =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) arrayOf(Manifest.permission.POST_NOTIFICATIONS) else emptyArray()
 
+    /** True when every required (not optional) permission is granted. */
     private fun hasPermissions() = requiredPermissions().all {
         ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
     }
 
+    /** Asks for whatever is still missing, required and optional in one dialog run. */
     private fun requestPermissions() {
         val missing = (requiredPermissions() + optionalPermissions()).filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED

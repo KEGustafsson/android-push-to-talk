@@ -3,7 +3,7 @@
 Kotlin, minSdk 29. No third-party audio libs: raw 16 kHz mono PCM16 in 20 ms frames.
 
 ## Build
-Open the folder in Android Studio (Hedgehog or newer) and build, or run
+Open the folder in Android Studio (Koala or newer, for Android Gradle Plugin 8.5) and build, or run
 `./gradlew assembleDebug` with an Android SDK (platform 34) installed. Install on
 two or more phones.
 
@@ -30,8 +30,11 @@ two or more phones.
    the screen off or another app in front. The ongoing notification shows the
    status line and has a Disconnect action. In full duplex the mic stays on in
    the background too; half duplex needs the screen to hold the button.
-   On Android 13+ grant the notification permission or the notification is hidden
-   (the session still runs).
+   On Android 13+ grant the notification permission; if you deny it the notification
+   is hidden from the drawer, but the session still runs and stays visible in the
+   system Task Manager. On Android 14+ the platform no longer lets an app keep Wi‑Fi
+   out of power save with the screen off, so expect slightly higher latency there
+   until the screen comes back on.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
