@@ -20,3 +20,27 @@ internal fun transportThread(name: String, onError: (Throwable) -> Unit, body: (
             onError(t)
         }
     }
+
+/** Sleeps [ms]; false if interrupted, which is how a stopping transport ends a retry loop early. */
+internal fun sleepQuietly(ms: Long): Boolean =
+    try {
+        Thread.sleep(ms)
+        true
+    } catch (_: InterruptedException) {
+        false
+    }
+
+/**
+ * Runs [block] and turns anything it throws into a status line. For calls made from
+ * framework callbacks on the main thread, where an exception would otherwise crash the app.
+ */
+internal inline fun reporting(onStatus: (String) -> Unit, what: String, block: () -> Unit) {
+    try {
+        block()
+    } catch (t: Throwable) {
+        onStatus("$what: ${t.message}")
+    }
+}
+
+/** Node ids as they appear in status lines: unsigned hex, e.g. `58738d38`. */
+internal fun hex(id: Int): String = id.toUInt().toString(16)
