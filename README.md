@@ -11,14 +11,17 @@ browser). Every phone on the crew must run the same version; the Status screen (
 the version and the commit it was built from.
 
 The version is `1.<number of commits on main>`, set by the build from git, so nobody bumps
-numbers by hand. Pull requests get the same APK as a workflow artifact, unsigned for release.
+numbers by hand. Pull requests get the same APK as a workflow artifact, signed with the debug
+key (the release key is only used on `main`).
 
 ## Build
 Open the folder in Android Studio (Koala or newer, for Android Gradle Plugin 8.5) and build, or run
 `./gradlew assembleDebug` with an Android SDK (platform 34) installed. Install on
 two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 
-A local build is signed with the debug key; a Release from GitHub with the crew's release key.
+`assembleRelease` signs with the crew's release key when the `CREWRADIO_*` variables below are
+set and with the debug key otherwise. A local build is normally debug-signed; a Release from
+GitHub is release-signed.
 Android will not upgrade one with the other in place: uninstall first when switching between
 them (the app keeps no data worth losing). To sign locally like the pipeline, put the keystore
 outside the repository and export `CREWRADIO_KEYSTORE`, `CREWRADIO_KEYSTORE_PASSWORD`,

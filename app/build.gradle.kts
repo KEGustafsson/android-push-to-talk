@@ -31,6 +31,12 @@ val dirty = git("status", "--porcelain").isNotEmpty()
 val keystoreFile = file(System.getenv("CREWRADIO_KEYSTORE") ?: "release.keystore")
 val hasReleaseKey = keystoreFile.exists() && System.getenv("CREWRADIO_KEYSTORE_PASSWORD") != null
 
+// A shallow clone counts fewer commits, so a release-signed build from one could carry a lower
+// versionCode than the last Release and be refused by the phone as a downgrade. Refuse first.
+if (hasReleaseKey && git("rev-parse", "--is-shallow-repository") == "true") {
+    throw GradleException("Release-signed builds need the full git history: run `git fetch --unshallow` first")
+}
+
 android {
     namespace = "fi.crewradio"
     compileSdk = 34

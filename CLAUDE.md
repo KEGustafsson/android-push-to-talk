@@ -14,11 +14,13 @@ flooding relay so multiple transports and multi-hop topologies work.
   platform 34 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
 - Versions come from git in `app/build.gradle.kts`: `versionCode` = commit count, `versionName` =
   `1.<count>`, `BuildConfig.GIT_SHA` on the Status screen. Never edit version numbers by hand.
-- Release pipeline: `.github/workflows/build.yml` runs the unit tests and `assembleRelease` on
-  every push/PR (APK as an artifact) and, on a push to `main`, publishes a GitHub Release
-  `v<version>` with `CrewRadio-<version>.apk`. Signing uses the `CREWRADIO_*` secrets (keystore
-  base64 + passwords); without them the release build falls back to the debug key. The keystore
-  lives outside the repo (`*.keystore` is ignored); the maintainer keeps it in `~/.crewradio/`.
+- Release pipeline: `.github/workflows/build.yml`. The `build` job (every push/PR; read-only
+  token, no secrets, no persisted credentials) runs the unit tests and a debug-signed
+  `assembleRelease`, uploaded as an artifact. The `release` job (push to `main` only) builds again
+  with the `CREWRADIO_*` secrets (keystore base64 + passwords) and publishes a GitHub Release
+  `v<version>` with `CrewRadio-<version>.apk`. Without the keystore `assembleRelease` falls back to
+  the debug key; with it, a shallow clone is refused (the commit count would be wrong). The
+  keystore lives outside the repo (`*.keystore` ignored); the maintainer keeps it in `~/.crewradio/`.
 - Unit tests (JUnit 4, pure Kotlin only, no Android runtime): `./gradlew testDebugUnitTest`.
   Real testing needs two or more physical phones; the emulator has no Bluetooth or Wi-Fi Aware,
   and MediaCodec behaviour can only be checked on a device.
