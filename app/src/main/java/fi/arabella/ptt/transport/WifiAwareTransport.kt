@@ -83,6 +83,8 @@ class WifiAwareTransport(
     private val dials = ConcurrentHashMap<Int, Dial>()            // peers we are dialling or linked to
     private val backoffs = ConcurrentHashMap<Int, Backoff>()
     private val attachBackoff = Backoff()
+    private val attaching = AtomicBoolean()                       // one WifiAwareManager.attach() in flight at most
+    private val lifecycle = Any()                                 // orders "add a link" against "stop and close them all"
     private lateinit var onPacket: (ByteArray, Transport, Any?) -> Unit
     private lateinit var onStatus: (String) -> Unit
 
@@ -117,30 +119,48 @@ class WifiAwareTransport(
 
     // ---- session ------------------------------------------------------------------
 
-    /** Attaches, or re-attaches after the session died; waits with backoff while Aware is unavailable. */
+    /**
+     * Attaches, or re-attaches after the session died; waits with backoff while Aware is
+     * unavailable. The retry timer and the state broadcast can both land here, so only one
+     * attach() is ever in flight, and a callback from an attach that is no longer current
+     * (its session already replaced) is ignored rather than allowed to tear down the new one.
+     */
     private fun attach() {
         if (!running || session != null) return
-        val m = manager ?: return
-        if (!m.isAvailable) {
-            retryAttach("Aware: unavailable (Wi-Fi off?), waiting")
+        if (!attaching.compareAndSet(false, true)) return
+        val m = manager
+        if (m == null || !m.isAvailable) {
+            attaching.set(false)
+            if (m != null) retryAttach("Aware: unavailable (Wi-Fi off?), waiting")
             return
         }
-        reporting(onStatus, "Aware attach") {
+        try {
             m.attach(object : AttachCallback() {
+                private var mine: WifiAwareSession? = null
+
                 override fun onAttached(s: WifiAwareSession) {
-                    if (!running) { s.close(); return }
+                    attaching.set(false)
+                    if (!running || session != null) { s.close(); return }   // stopped, or another attach won
+                    mine = s
                     session = s
                     attachBackoff.reset()
                     startPublish(s)
                     startSubscribe(s)
                     onStatus("Aware: attached, discovering…")
                 }
-                override fun onAttachFailed() = retryAttach("Aware: attach failed, retrying")
+                override fun onAttachFailed() {
+                    attaching.set(false)
+                    retryAttach("Aware: attach failed, retrying")
+                }
                 override fun onAwareSessionTerminated() {
+                    if (mine == null || session !== mine) return               // stale: not the session in use
                     dropSession()
                     retryAttach("Aware: session ended, re-attaching")
                 }
             }, handler)
+        } catch (t: Throwable) {
+            attaching.set(false)
+            onStatus("Aware attach: ${t.message}")
         }
     }
 
@@ -150,10 +170,15 @@ class WifiAwareTransport(
         handler.postDelayed({ attach() }, attachBackoff.next())
     }
 
-    /** Forgets peers, dials, discovery sessions and links: all of it hangs off the session. */
-    private fun dropSession() {
+    /** Responder requests belong to the publish session; drop them whenever it goes. */
+    private fun clearResponders() {
         for (cb in responderCallbacks) unregister(cb)
         responderCallbacks.clear()
+    }
+
+    /** Forgets peers, dials, discovery sessions and links: all of it hangs off the session. */
+    private fun dropSession() {
+        clearResponders()
         for (d in dials.values) d.abandon()
         dials.clear()
         peers.clear()
@@ -194,6 +219,7 @@ class WifiAwareTransport(
                 }
                 override fun onSessionTerminated() {
                     publish = null
+                    clearResponders()                   // the restart registers fresh ones
                     if (running && session != null) {
                         onStatus("Aware: publish ended, restarting")
                         handler.postDelayed({ session?.let { startPublish(it) } }, RESTART_MS)
@@ -351,11 +377,15 @@ class WifiAwareTransport(
         }
     }
 
+    /** Registers a connected socket as a link, unless [stop] already ran — then it is closed instead. */
     private fun addLink(socket: Socket, why: String, dial: Dial?) {
         socket.tcpNoDelay = true
         val link = StreamLink(socket.inetAddress.hostAddress ?: "?", socket.getInputStream(), socket.getOutputStream()) { socket.close() }
-        dial?.link = link
-        links.add(link)
+        synchronized(lifecycle) {
+            if (!running) { link.close(); return }
+            dial?.link = link
+            links.add(link)
+        }
         onStatus("Aware: $why (${links.size} link${if (links.size == 1) "" else "s"})")
         transportThread("ptt-aware-rx", { onStatus("Aware rx stopped: ${it.message}") }) {
             try {
@@ -378,7 +408,11 @@ class WifiAwareTransport(
     }
 
     override fun stop() {
-        running = false
+        synchronized(lifecycle) {
+            running = false
+            for (link in links) link.close()
+            links.clear()
+        }
         handler.removeCallbacksAndMessages(null)          // pending re-attach and re-dial timers
         try { appContext.unregisterReceiver(stateReceiver) } catch (_: Exception) {}
         try { server?.close() } catch (_: IOException) {}

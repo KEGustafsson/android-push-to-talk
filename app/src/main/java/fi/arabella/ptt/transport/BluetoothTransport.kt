@@ -44,8 +44,10 @@ class BluetoothTransport(
     /** Resolved now, while the adapter is on: with it off, `name` is null and retries would show the MAC. */
     private val peerLabel: String? = peer?.let { label(it) }
     private val links = CopyOnWriteArrayList<StreamLink>()
+    private val lifecycle = Any()                       // orders "add a link" against "stop and close them all"
     @Volatile private var server: BluetoothServerSocket? = null
     @Volatile private var dialThread: Thread? = null
+    @Volatile private var dialing: BluetoothSocket? = null   // mid-connect(); interrupt() does not abort that, close() does
     @Volatile private var running = false
     private lateinit var onPacket: (ByteArray, Transport, Any?) -> Unit
     private lateinit var onStatus: (String) -> Unit
@@ -84,7 +86,12 @@ class BluetoothTransport(
             backoff.reset()
             while (running) {
                 val s = try { srv.accept() } catch (_: Exception) { break }
-                addLink(s, "accepted ${label(s.remoteDevice)}", isDialed = false)
+                try {
+                    addLink(s, "accepted ${label(s.remoteDevice)}", isDialed = false)
+                } catch (e: Exception) {                // the peer hung up before we got its streams; keep serving
+                    try { s.close() } catch (_: Exception) {}
+                    onStatus("BT: accept failed (${e.message})")
+                }
             }
             try { srv.close() } catch (_: Exception) {}
             server = null
@@ -115,10 +122,13 @@ class BluetoothTransport(
             var socket: BluetoothSocket? = null
             try {
                 socket = dev.createRfcommSocketToServiceRecord(SERVICE_UUID)
+                dialing = socket
                 socket.connect()
+                dialing = null
                 addLink(socket, "connected to ${peerLabel ?: label(dev)}", isDialed = true)
                 return
             } catch (e: Exception) {
+                dialing = null
                 try { socket?.close() } catch (_: Exception) {}
                 if (!running) return
                 val wait = backoff.next()
@@ -145,10 +155,14 @@ class BluetoothTransport(
     private fun label(dev: BluetoothDevice): String =
         (try { dev.name } catch (_: SecurityException) { null }) ?: dev.address
 
+    /** Registers a connected socket as a link, unless [stop] already ran — then it is closed instead. */
     private fun addLink(socket: BluetoothSocket, why: String, isDialed: Boolean) {
         val dev = socket.remoteDevice
         val link = StreamLink(label(dev), socket.inputStream, socket.outputStream) { socket.close() }
-        links.add(link)
+        synchronized(lifecycle) {
+            if (!running) { link.close(); return }
+            links.add(link)
+        }
         onStatus("BT: $why (${links.size} link${if (links.size == 1) "" else "s"})")
         transportThread("ptt-bt-rx-${dev.address}", { onStatus("BT rx stopped: ${it.message}") }) {
             try {
@@ -171,12 +185,15 @@ class BluetoothTransport(
     }
 
     override fun stop() {
-        running = false
+        synchronized(lifecycle) {
+            running = false
+            for (link in links) link.close()
+            links.clear()
+        }
         dialThread?.interrupt()                         // ends a backoff sleep early
+        try { dialing?.close() } catch (_: Exception) {} // aborts a connect() in flight
         try { server?.close() } catch (_: Exception) {}
         server = null
-        for (link in links) link.close()
-        links.clear()
     }
 
     companion object {

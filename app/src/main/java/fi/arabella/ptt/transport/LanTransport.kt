@@ -49,6 +49,7 @@ class LanTransport(
     private val groupAddr: InetAddress by lazy { InetAddress.getByName(group) }
     private val backoff = Backoff()
     private val wake = Semaphore(0)                      // released to cut a backoff wait short
+    private val lifecycle = Any()                        // orders "publish a socket" against "stop and close it"
 
     @Volatile private var socket: MulticastSocket? = null
     @Volatile private var openedOn: String? = null       // "wlan0/192.168.0.35" while a socket is up
@@ -98,7 +99,14 @@ class LanTransport(
     /** Opens the socket, receives until it breaks, waits, repeats — for as long as the session runs. */
     private fun rxLoop() {
         while (running) {
-            val nic = pickInterface()
+            val nic = try {
+                pickInterface()
+            } catch (e: Exception) {                   // enumerating interfaces can itself fail mid-change
+                val wait = backoff.next()
+                onStatus("LAN: can't list interfaces (${e.message}), retry in ${wait / 1000}s")
+                pause(wait)
+                continue
+            }
             if (nic == null) {
                 onStatus("LAN: no Wi-Fi, waiting")
                 pause(backoff.next())
@@ -113,7 +121,10 @@ class LanTransport(
                 continue
             }
             val own = ipv4Of(nic)
-            socket = s
+            synchronized(lifecycle) {
+                if (!running) { s.close(); return }   // stop() ran while we were opening
+                socket = s
+            }
             ownAddr = own
             openedOn = "${nic.name}/${own?.hostAddress}"
             broadcastAddr = broadcastAddressOf(nic)
@@ -136,12 +147,17 @@ class LanTransport(
      */
     private fun openSocket(nic: NetworkInterface): MulticastSocket {
         val s = MulticastSocket(null as SocketAddress?)
-        s.reuseAddress = true
-        s.bind(InetSocketAddress(port))
-        s.timeToLive = 1
-        s.broadcast = true
-        s.networkInterface = nic
-        s.joinGroup(InetSocketAddress(groupAddr, port), nic)
+        try {
+            s.reuseAddress = true
+            s.bind(InetSocketAddress(port))
+            s.timeToLive = 1
+            s.broadcast = true
+            s.networkInterface = nic
+            s.joinGroup(InetSocketAddress(groupAddr, port), nic)
+        } catch (e: Exception) {
+            s.close()                                  // a bound-but-unjoined socket would hold the port
+            throw e
+        }
         return s
     }
 
@@ -191,12 +207,14 @@ class LanTransport(
     }
 
     override fun stop() {
-        running = false
-        try { connectivity.unregisterNetworkCallback(wifiCallback) } catch (_: Exception) {}
-        socket?.let {
-            try { it.leaveGroup(groupAddr) } catch (_: Exception) {}
-            it.close()
+        synchronized(lifecycle) {
+            running = false
+            socket?.let {
+                try { it.leaveGroup(groupAddr) } catch (_: Exception) {}
+                it.close()
+            }
         }
+        try { connectivity.unregisterNetworkCallback(wifiCallback) } catch (_: Exception) {}
         wake.release()
         rxThread?.join(500)
         rxThread = null
