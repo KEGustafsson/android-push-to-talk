@@ -33,12 +33,13 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 5b. **Headset** (Settings > Talking > Audio output): a Bluetooth headset gets the voice both
    ways over its hands-free (SCO) link as soon as it is connected, a wired or USB headset when
    plugged in, and the speakerphone otherwise; it follows the headset as it comes and goes
-   while on channel, with an "Audio: ..." status line on each change. Choose "Always the
-   loudspeaker" to ignore headsets, or "Earpiece" to hold the phone to the ear like a call:
-   private, no loudspeaker feeding back into the mic in full duplex, and since the screen is
-   then out of reach, your voice keys the mic (see 5c) while the phone is at your ear: the
-   proximity sensor arms it, exactly as it darkens the screen in a call. Away from the ear
-   it never transmits by itself. A hands-free headset's button is a media key to the app
+   while on channel, with an "Audio: ..." status line on each change. Without a headset the
+   phone behaves like a phone call: lift it to your ear and the voice moves to the earpiece
+   and your voice keys the mic (see 5c), put it down and it is back on the loudspeaker with
+   the button. The proximity sensor decides, exactly as it darkens the screen in a call.
+   "Always the loudspeaker" ignores headsets and the ear; "Earpiece" keeps the earpiece
+   always, still with voice keying only at the ear. Away from the ear the phone never
+   transmits by itself, and the button works everywhere. A hands-free headset's button is a media key to the app
    (press = talk on/off, see Talk button); if the headset instead treats the press as a
    hang-up, the phone drops the headset's audio link for a moment and the app re-opens it
    (a second of silence). For headsets whose button only ever hangs up, turn on Settings >
@@ -55,10 +56,10 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    you speak: on air within 40 ms (the first 100 ms are kept and sent, so nothing is
    clipped), off air 1.5 s after you stop. Mute the headset, or lift the boom, to be sure
    you are off. Meant for a headset with its own noise suppression, which is quiet between
-   words. It is also always on with the Earpiece output, on the phone's own mic, but only
-   while the proximity sensor says the phone is at your ear: on the phone's mic the level
-   cannot tell your voice from a shipmate's a metre away. In heavy wind or engine noise it
-   may stay on air; use the loudspeaker and the button there.
+   words. On the phone's own mic it is always on while the phone is at your ear (any output
+   but "Always the loudspeaker"): the proximity sensor arms it, because on the phone's mic
+   the level cannot tell your voice from a shipmate's a metre away. In heavy wind or engine
+   noise it may stay on air; use the loudspeaker and the button there.
 6. **Screen off / background**: while connected the app runs as a foreground
    service with a wake lock and a Wi‑Fi lock, so you keep hearing the crew with
    the screen off or another app in front. The ongoing notification shows the

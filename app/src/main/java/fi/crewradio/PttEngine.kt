@@ -144,15 +144,23 @@ class PttEngine(
     private val proximity = object : android.hardware.SensorEventListener {
         override fun onSensorChanged(e: android.hardware.SensorEvent) {
             val near = e.values[0] < (e.sensor.maximumRange.coerceAtMost(5f))
-            if (near != atEar) { atEar = near; onStatus(if (near) "At the ear: voice keys the mic" else "Away from the ear") }
+            if (near != atEar) {
+                atEar = near
+                route.atEar = near                                // AUTO: earpiece at the ear, loudspeaker away
+                onStatus(if (near) "At the ear: voice keys the mic" else "Away from the ear")
+            }
         }
         override fun onAccuracyChanged(s: android.hardware.Sensor?, a: Int) = Unit
     }
+    /** Told when the engine starts or stops watching the ear; the service darkens the screen at the ear meanwhile. */
+    @Volatile var onEarWatch: ((Boolean) -> Unit)? = null
+
     private fun watchProximity(on: Boolean) {
         val s = sensors.getDefaultSensor(android.hardware.Sensor.TYPE_PROXIMITY)
         if (s == null) { atEar = true; return }                       // no sensor: trust the level alone
         if (on) sensors.registerListener(proximity, s, android.hardware.SensorManager.SENSOR_DELAY_NORMAL)
-        else { sensors.unregisterListener(proximity); atEar = false }
+        else { sensors.unregisterListener(proximity); atEar = false; route.atEar = false }
+        onEarWatch?.invoke(on)
     }
 
     /** True while voice keying is armed: always with a headset, at the ear on the earpiece route. */
@@ -173,8 +181,10 @@ class PttEngine(
     private fun syncMonitor() {
         var toStop: AudioCapture? = null
         synchronized(monitorLock) {
-            // The earpiece means the phone is at the ear, out of reach: voice keys the mic there always.
-            val want = isConnected && !held && (route.policy == AudioRoute.Policy.EARPIECE || (headsetVox && route.bluetoothHeadset))
+            // On the phone itself the ear arms voice keying (earpiece, or auto at the ear); with a
+            // Bluetooth headset it is the setting. A wired headset has a button that works, so neither.
+            val phone = !route.headset && route.policy != AudioRoute.Policy.SPEAKER
+            val want = isConnected && !held && (phone || (headsetVox && route.bluetoothHeadset))
             if (want == (monitor != null)) return
             if (!want) {
                 toStop = monitor
@@ -209,10 +219,11 @@ class PttEngine(
     private fun voiceFrame(pcm: ByteArray) {
         val rms = MicGate.rms(pcm)
         micPeak.accumulateAndGet(rms.toInt()) { a, b -> maxOf(a, b) }
-        if (phoneMic && !atEar) {                                  // away from the ear: the gate is disarmed
+        if (phoneMic && !atEar) {                                  // away from the ear: the gate is disarmed, the button still works
             if (gateTalking) { gateTalking = false; stopTalking() }
             gate.reset()
-            preroll.addLast(pcm); while (preroll.size > PREROLL) preroll.removeFirst()
+            if (talking) sendFrame(pcm)
+            else { preroll.addLast(pcm); while (preroll.size > PREROLL) preroll.removeFirst() }
             return
         }
         when (gate.feed(rms)) {

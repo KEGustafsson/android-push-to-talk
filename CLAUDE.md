@@ -88,7 +88,10 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   above 80 RMS and un-keys after 75 frames below 40 (300/120 on the phone's own mic:
   `MicGate.tune`); a 5-frame pre-roll is sent on open. On the phone's mic the voice-call path
   levels close talk (400-1150 peaks) and a talker a metre away (1500-1900) to the same range,
-  so the earpiece route arms the gate only while the proximity sensor reads near (`atEar`).
+  so on the phone the gate is armed only while the proximity sensor reads near (`atEar`); in
+  `AudioRoute.Policy.AUTO` that same flag also moves the route to the earpiece (`AudioRoute.atEar`),
+  loudspeaker when away, like a phone call. The phone-mic monitor runs on any route but
+  SPEAKER when no headset is in use; a manually keyed mic sends even away from the ear.
   `startTalking` skips opening its own capture while the monitor runs and `sendFrame` is fed
   from it. Off by default, except that the `earpiece` route always runs it (the phone is at
   the ear, the screen out of reach). Cue tones (`cue_tones`) are off by default too.

@@ -48,7 +48,7 @@
             app:key="headset_vox"
             app:title="Voice keys the mic"
             app:defaultValue="false"
-            app:summary="With a Bluetooth headset: just speak. The mic keys itself when you talk and un-keys 1.5 s after you stop; mute the headset to be sure you are off air. For headsets whose button does not reach the app. Always on with the Earpiece output, where the screen is out of reach." />
+            app:summary="With a Bluetooth headset: just speak. The mic keys itself when you talk and un-keys 1.5 s after you stop; mute the headset to be sure you are off air. For headsets whose button does not reach the app. With the phone at your ear it is always on, on any output but the loudspeaker." />
         <SwitchPreferenceCompat
             app:key="cue_tones"
             app:title="Talk key tones"

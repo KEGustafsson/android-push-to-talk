@@ -30,9 +30,9 @@ import android.os.Looper
 class AudioRoute(private val context: Context, private val onStatus: (String) -> Unit) {
 
     /**
-     * [AUTO] prefers a headset, else the loudspeaker; [SPEAKER] always the loudspeaker;
-     * [EARPIECE] always the earpiece, the phone held to the ear like a call. Headsets are
-     * ignored by the last two.
+     * [AUTO] prefers a headset, else the earpiece while the phone is at the ear and the
+     * loudspeaker otherwise; [SPEAKER] always the loudspeaker; [EARPIECE] always the earpiece.
+     * Headsets are ignored by the last two.
      */
     enum class Policy { AUTO, SPEAKER, EARPIECE }
 
@@ -56,6 +56,14 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
 
     /** True while a Bluetooth headset is the wanted route. */
     val bluetoothHeadset: Boolean get() = bluetoothWanted
+
+    /** True while any headset (Bluetooth, wired, USB) is the wanted route. */
+    @Volatile var headset = false
+        private set
+
+    /** The phone is at the ear (proximity sensor): in [Policy.AUTO] that means the earpiece, as in a call. Set by the engine. */
+    @Volatile var atEar = false
+        set(value) { if (field != value) { field = value; if (active) apply(announce = true) } }
 
     /**
      * A hands-free headset that thinks it is in a call answers its own button with a hang-up,
@@ -139,8 +147,9 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
             bluetoothWanted = bluetooth
             handler.post { onBluetoothHeadset?.invoke(bluetooth) }
         }
+        this.headset = headset != null
         if (passive) return                                   // Telecom is routing; it reports the label itself
-        val earpiece = headset == null && policy == Policy.EARPIECE
+        val earpiece = headset == null && (policy == Policy.EARPIECE || (policy == Policy.AUTO && atEar))
         val label = when {
             earpiece -> "Earpiece"
             headset == null -> "Speaker"

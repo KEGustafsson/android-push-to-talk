@@ -70,12 +70,31 @@ class PttService : Service() {
     private val binder = LocalBinder()
     private var mediaSession: MediaSession? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    /** Screen off while the phone is at the ear, as in a call, so a cheek cannot press the talk button. */
+    private var earLock: PowerManager.WakeLock? = null
+
+    private fun earWatch(on: Boolean) {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (on) {
+            if (earLock == null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                earLock = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "ptt:ear").also {
+                    it.setReferenceCounted(false)
+                    it.acquire()
+                }
+            }
+        } else {
+            earLock?.let { if (it.isHeld) it.release(PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY) }
+            earLock = null
+        }
+    }
     private val wifiLocks = mutableListOf<WifiManager.WifiLock>()
 
     /** Creates the engine and the notification channel; the engine lives as long as the service. */
     override fun onCreate() {
         super.onCreate()
         engine = PttEngine(this, ::onStatus, ::onRoster)
+        engine.onEarWatch = { on -> mainHandler.post { earWatch(on) } }
         createChannel()
     }
 
