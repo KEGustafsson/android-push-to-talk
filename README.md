@@ -44,6 +44,14 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    on hold, muted both ways, until you hang up ("On hold: phone call" / "Back on channel").
    Note that in that mode the phone drops any media key the headset sends, so use it only
    for headsets that do not send one.
+5c. **Voice keys the mic** (Settings > Talking, VOX): many hands-free headsets (a Jabra
+   Evolve2 65 was measured) do not transmit their main button at all while their voice link
+   is up, so no app can use it, and their mute is invisible to apps too. With this on, the
+   app keeps the headset mic open the whole time you are on channel and keys itself when
+   you speak: on air within 40 ms (the first 100 ms are kept and sent, so nothing is
+   clipped), off air 1.5 s after you stop. Mute the headset, or lift the boom, to be sure
+   you are off. Meant for a headset with its own noise suppression, which is quiet between
+   words; on the phone's own mic, wind and engine noise would keep it on air.
 6. **Screen off / background**: while connected the app runs as a foreground
    service with a wake lock and a Wi‑Fi lock, so you keep hearing the crew with
    the screen off or another app in front. The ongoing notification shows the
@@ -89,8 +97,9 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    Bluetooth peer - and remembers them, so a normal day is open the app, flip the channel
    switch on.
 13. **Talk button** (Settings > Talking): while on the channel, a headset or media button and
-   the volume keys key the mic. Press once: mic on, one tone in the ear (or the speaker) and a
-   short buzz. Press again: mic off, two tones and a double buzz. Holding a headset button
+   the volume keys key the mic. Press once: mic on and a short buzz. Press again: mic off and
+   a double buzz (Settings > Talking > Talk key tones adds a tone in the ear for each, off by
+   default). Holding a headset button
    talks for as long as you hold it, like a radio, on headsets that report the release; a
    Bluetooth headset that only clicks toggles. Works with the screen off, which is the point;
    turn off Keep screen on in the same section and the phone can live in a pocket. Volume keys
@@ -113,6 +122,7 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `audio/Decimator` — 48 kHz decoder output back down to 16 kHz
 - `audio/Conceal` — packet-loss concealment: the last frame, fading, for up to three missing slots
 - `audio/Tones` — the cue tones a talk key plays in the ear, as mixer frames
+- `audio/MicGate` — voice-operated keying: 40 ms of speech opens, 1.5 s of quiet closes
 - `transport/LanTransport` — UDP multicast + subnet broadcast
 - `transport/BluetoothTransport` — RFCOMM, server + client
 - `transport/WifiAwareTransport` — NAN publish/subscribe, TCP data paths, lower‑id‑initiates tie‑break

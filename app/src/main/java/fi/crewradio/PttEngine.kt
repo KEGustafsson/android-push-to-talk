@@ -8,6 +8,7 @@ import fi.crewradio.audio.AudioCapture
 import fi.crewradio.audio.AudioConfig
 import fi.crewradio.audio.AudioRoute
 import fi.crewradio.audio.Conceal
+import fi.crewradio.audio.MicGate
 import fi.crewradio.audio.Mixer
 import fi.crewradio.audio.OpusDecoder
 import fi.crewradio.audio.OpusEncoder
@@ -116,6 +117,58 @@ class PttEngine(
 
     private val route = AudioRoute(context, onStatus)
 
+    /**
+     * Voice-operated keying with a headset (setting `headset_vox`): while a Bluetooth headset
+     * is the route, its mic is captured all the time and speech keys the mic, 1.5 s of quiet
+     * un-keys it ([MicGate]); the last [PREROLL] frames before the gate opened go out first,
+     * so the first syllable is not clipped. A muted headset is quiet, so mute means off air.
+     */
+    @Volatile var headsetVox = false
+        set(value) { if (field != value) { field = value; syncMonitor() } }
+
+    private var monitor: AudioCapture? = null
+    private val gate = MicGate()
+    private val preroll = ArrayDeque<ByteArray>()
+    @Volatile private var gateTalking = false      // the gate keyed the mic, so the gate un-keys it
+
+    /** Starts or stops the always-on headset capture as the setting, the route and the session dictate. */
+    @Synchronized
+    private fun syncMonitor() {
+        val want = headsetVox && isConnected && route.bluetoothHeadset && !held
+        if (want == (monitor != null)) return
+        if (!want) {
+            val m = monitor
+            monitor = null
+            if (gateTalking) { gateTalking = false; stopTalking() }
+            m?.stop()
+            gate.reset()
+            return
+        }
+        gate.reset()
+        preroll.clear()
+        val m = AudioCapture { pcm ->
+            when (gate.feed(pcm)) {
+                MicGate.Change.OPEN -> if (!talking) {
+                    gateTalking = true
+                    startTalking()
+                    if (talking) for (f in preroll) sendFrame(f)      // the syllable that opened the gate
+                }
+                MicGate.Change.CLOSE -> if (gateTalking) { gateTalking = false; stopTalking() }
+                null -> Unit
+            }
+            if (talking) sendFrame(pcm)
+            else { preroll.addLast(pcm); while (preroll.size > PREROLL) preroll.removeFirst() }
+        }
+        try {
+            m.start()
+            monitor = m
+            onStatus("Voice keys the mic")
+        } catch (e: Exception) {
+            m.stop()
+            onStatus("Mic error: ${e.message}")
+        }
+    }
+
     /** A hardware talk key that reaches the engine through Telecom (a Bluetooth headset's button). Set by the service. */
     @Volatile var onTalkKey: (() -> Unit)? = null
     @Volatile private var held = false
@@ -138,6 +191,7 @@ class PttEngine(
             if (held) stopTalking()
             mixer.muted = held
             onStatus(if (held) "On hold: phone call" else "Back on channel")
+            syncMonitor()
         }
         override fun onAudioRoute(label: String) {
             if (label != route.current) { route.current = label; onStatus("Audio: $label") }
@@ -157,7 +211,7 @@ class PttEngine(
         }
 
     init {
-        route.onBluetoothHeadset = { present -> syncCall(present) }
+        route.onBluetoothHeadset = { present -> syncCall(present); syncMonitor() }
     }
 
     private fun syncCall(bluetoothPresent: Boolean) {
@@ -252,10 +306,12 @@ class PttEngine(
         heartbeat = Executors.newSingleThreadScheduledExecutor { Thread(it, "ptt-heartbeat") }.also {
             it.scheduleAtFixedRate({ tick() }, 0, TICK_MS, TimeUnit.MILLISECONDS)
         }
+        syncMonitor()
     }
 
     /** Stops everything and releases codecs; safe to call when already idle. */
     fun disconnect() {
+        monitor?.let { monitor = null; gateTalking = false; it.stop() }
         stopTalking()
         heartbeat?.shutdownNow()
         heartbeat = null
@@ -289,21 +345,11 @@ class PttEngine(
                 null
             }
         } else null
-        val cap = AudioCapture { pcm ->
-            val e = encoder
-            if (e == null) {
-                broadcast(Packet.Codec.PCM, pcm)
-            } else {
-                try {
-                    e.encode(pcm)
-                } catch (ex: Exception) {
-                    encoder = null
-                    e.release()
-                    onStatus("Opus failed (${ex.message}), sending PCM")
-                    broadcast(Packet.Codec.PCM, pcm)
-                }
-            }
+        if (monitor != null) {             // the always-on headset capture feeds sendFrame while talking
+            onStatus(if (mode == Mode.FULL_DUPLEX) "Mic on" else "Transmitting")
+            return
         }
+        val cap = AudioCapture { pcm -> sendFrame(pcm) }
         try {
             cap.start()
         } catch (e: Exception) {
@@ -318,10 +364,28 @@ class PttEngine(
         onStatus(if (mode == Mode.FULL_DUPLEX) "Mic on" else "Transmitting")
     }
 
+    /** One captured frame out: through the Opus encoder when there is one, else raw. */
+    private fun sendFrame(pcm: ByteArray) {
+        val e = encoder
+        if (e == null) {
+            broadcast(Packet.Codec.PCM, pcm)
+        } else {
+            try {
+                e.encode(pcm)
+            } catch (ex: Exception) {
+                encoder = null
+                e.release()
+                onStatus("Opus failed (${ex.message}), sending PCM")
+                broadcast(Packet.Codec.PCM, pcm)
+            }
+        }
+    }
+
     /** Un-keys the mic and releases the capture and encoder. */
     fun stopTalking() {
         if (!talking) return
         talking = false
+        gateTalking = false
         capture?.stop()
         capture = null
         encoder?.release()
@@ -534,6 +598,8 @@ class PttEngine(
     }
 
     private companion object {
+        /** Frames kept from before the voice gate opened and sent first: 100 ms. */
+        const val PREROLL = 5
         const val DECODER_IDLE_NS = 30_000_000_000L
         const val EVICT_IDLE_NS = 2_000_000_000L
         const val MAX_DECODERS = 8            // a crew, not a crowd; each one is a MediaCodec instance

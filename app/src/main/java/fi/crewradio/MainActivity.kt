@@ -257,6 +257,8 @@ class MainActivity : AppCompatActivity() {
         e.displayName = prefs.name ?: e.defaultName
         e.audioRoute = if (prefs.speakerOnly) fi.crewradio.audio.AudioRoute.Policy.SPEAKER else fi.crewradio.audio.AudioRoute.Policy.AUTO
         e.headsetAsCall = prefs.headsetAsCall
+        e.headsetVox = prefs.headsetVox
+        service?.cueTones = prefs.cueTones
         service?.refreshHardwareButtons()
     }
 

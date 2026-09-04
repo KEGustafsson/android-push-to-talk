@@ -35,7 +35,7 @@
         <Preference
             app:key="hw_button_help"
             app:selectable="false"
-            app:summary="Press once: mic on, one tone in the ear. Press again: mic off, two tones. Holding a headset button talks for as long as you hold it. A volume key works the same, press for press." />
+            app:summary="Press once: mic on. Press again: mic off. Holding a headset button talks for as long as you hold it. A volume key works the same, press for press." />
         <ListPreference
             app:key="audio_route"
             app:title="Audio output"
@@ -44,6 +44,16 @@
             app:defaultValue="auto"
             app:dialogTitle="Where the voice goes"
             app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:key="headset_vox"
+            app:title="Voice keys the mic (headset)"
+            app:defaultValue="false"
+            app:summary="With a Bluetooth headset: just speak. The mic keys itself when you talk and un-keys 1.5 s after you stop; mute the headset to be sure you are off air. For headsets whose button does not reach the app." />
+        <SwitchPreferenceCompat
+            app:key="cue_tones"
+            app:title="Talk key tones"
+            app:defaultValue="false"
+            app:summary="One tone in the ear when a talk key keys the mic, two when it un-keys it. Off: the buzz on the phone only." />
         <SwitchPreferenceCompat
             app:key="headset_call"
             app:title="Headset button hangs up"

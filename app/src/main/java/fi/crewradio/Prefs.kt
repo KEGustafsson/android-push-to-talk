@@ -69,6 +69,10 @@ class Prefs(context: Context) {
     val speakerOnly: Boolean get() = sp.getString(KEY_AUDIO_ROUTE, ROUTE_AUTO) == ROUTE_SPEAKER
     /** Register the session as a call while a Bluetooth headset is in use; for headsets whose button hangs up. */
     val headsetAsCall: Boolean get() = sp.getBoolean(KEY_HEADSET_CALL, false)
+    /** With a Bluetooth headset, speech keys the mic (VOX). */
+    val headsetVox: Boolean get() = sp.getBoolean(KEY_HEADSET_VOX, false)
+    /** A tone in the ear when a talk key keys or un-keys the mic. */
+    val cueTones: Boolean get() = sp.getBoolean(KEY_CUE_TONES, false)
     val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
     val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
 
@@ -94,6 +98,8 @@ class Prefs(context: Context) {
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_AUDIO_ROUTE = "audio_route"
         const val KEY_HEADSET_CALL = "headset_call"
+        const val KEY_HEADSET_VOX = "headset_vox"
+        const val KEY_CUE_TONES = "cue_tones"
         const val ROUTE_AUTO = "auto"
         const val ROUTE_SPEAKER = "speaker"
         const val KEY_FULL_DUPLEX = "full_duplex"

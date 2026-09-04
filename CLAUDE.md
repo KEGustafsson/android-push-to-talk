@@ -80,6 +80,14 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   Bluetooth headset is the route, Telecom routes the audio (`AudioRoute.passive`), the hang-up
   lands in `ChannelConnection.onDisconnect` as a talk toggle (`onAbort` really ends it), and a
   phone call holds the channel (mic off, mixer muted) until `onUnhold`.
+- VOX with a headset (`headset_vox`, `PttEngine.headsetVox`): the Jabra sends nothing for its
+  button while SCO is up, and its mute arrives as HFP mic gain 0/9, which the phone only stores;
+  by level, muted and quiet are the same ~2 RMS (its own noise suppression) with ~20 RMS spikes
+  once a second, speech 200-1900. So the engine runs an always-on `monitor` capture while a
+  Bluetooth headset is the route and `audio/MicGate` (pure, tested) keys the mic after 2 frames
+  above 80 RMS and un-keys after 75 frames below 40; a 5-frame pre-roll is sent on open.
+  `startTalking` skips opening its own capture while the monitor runs and `sendFrame` is fed
+  from it. Off by default. Cue tones (`cue_tones`) are off by default too.
 - Hardware talk button: `PttService` holds a `MediaSession` while on channel; headset/media
   buttons arrive as media button events, the volume keys through a remote `VolumeProvider`
   (the only way to get them with the screen off). Headset presses carry press and release, so

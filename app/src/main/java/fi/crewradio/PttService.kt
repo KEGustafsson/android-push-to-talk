@@ -205,6 +205,8 @@ class PttService : Service() {
     }
 
     @Volatile private var headsetButtons = false
+    /** Play [Tones] in the ear on a talk-key change (setting `cue_tones`). */
+    @Volatile var cueTones = false
     private val hardwareLock = Any()
     private var lastVolumeEventMs = 0L
     private var headsetDownMs = 0L
@@ -256,7 +258,7 @@ class PttService : Service() {
         val now = engine.isTalking
         if (on && !now) return                            // mic failed to start: the engine has reported why
         buzz(if (now) longArrayOf(0, 40) else longArrayOf(0, 30, 80, 30))
-        engine.cue(if (now) Tones.micOn() else Tones.micOff())
+        if (cueTones) engine.cue(if (now) Tones.micOn() else Tones.micOff())
         onStatus(if (now) "Talk key: mic on" else "Talk key: mic off")   // also refreshes the disc on screen
     }
 
