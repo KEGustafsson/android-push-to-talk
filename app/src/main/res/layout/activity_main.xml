@@ -41,24 +41,6 @@
         android:layout_height="wrap_content"
         android:visibility="gone" />
 
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/duplexSwitch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Full duplex (talk and listen at the same time)" />
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/relaySwitch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Relay (forward others' audio, mesh mode)" />
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/opusSwitch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Opus compression (about 10x less bandwidth)" />
-
     <Button
         android:id="@+id/connectButton"
         android:layout_width="match_parent"

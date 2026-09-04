@@ -23,11 +23,11 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 3b. Wi‑Fi Aware: nothing to set up — phones discover each other directly,
    no access point, no pairing. Range is Wi‑Fi class. Needs hardware support
    (most Pixel/Samsung flagships; check `WifiAwareManager.isAvailable`).
-3c. **Relay** (on by default): each phone forwards audio it receives to all
+3c. **Relay** (on by default, Settings > Talking): each phone forwards audio it receives to all
    its other links, with a seen‑cache to stop loops. This turns Aware/BT links
    into an app‑level flooding mesh: A‑B‑C works when A and C are out of range.
 4. **Half duplex** (default): hold the big button to talk; you don't hear others while holding.
-5. **Full duplex**: flip the switch; the button becomes a mic toggle, everyone is
+5. **Full duplex** (Settings > Talking): the button becomes a mic toggle, everyone is
    heard at once and overlapping talkers are mixed. A headset (wired or BT)
    gives far better results than speakerphone, though AEC is enabled.
 6. **Screen off / background**: while connected the app runs as a foreground
@@ -41,7 +41,7 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    out of power save with the screen off, so expect slightly higher latency there
    until the screen comes back on.
 
-7. **Opus compression** (on by default): frames are encoded with the phone's built-in
+7. **Opus compression** (on by default, Settings > Talking): frames are encoded with the phone's built-in
    Opus codec at 24 kbit/s, roughly a tenth of raw PCM, which is what makes Bluetooth
    and marginal Wi‑Fi usable. Every packet says which codec it carries, so Opus and
    PCM phones can share a net. If a phone has no working Opus encoder it falls back to
@@ -67,11 +67,11 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    shows the head count. A phone silent for 4 s drops off. Rename a phone in
    Settings > About phone > Device name, or give the app its own name in its Settings.
    Older builds simply ignore hellos and are listed by id from their audio.
-12. **Settings** (button top right): the name shown to the crew, the multicast group and
+12. **Settings** (button top right): full duplex, relay and Opus; the name shown to the crew, the multicast group and
    port, the Wi‑Fi Aware passphrase (phones only link when it matches, so it doubles as a
    crew name) and the hop limit. Name and hop limit apply at once; the network ones on the
-   next Connect. The main screen also remembers its transports, Bluetooth peer and switches,
-   so a normal day is open the app, press Connect.
+   next Connect. The main screen keeps only what changes per trip - transports and the
+   Bluetooth peer - and remembers them, so a normal day is open the app, press Connect.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames

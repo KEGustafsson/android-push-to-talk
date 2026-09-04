@@ -9,6 +9,25 @@
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="Talking">
+        <SwitchPreferenceCompat
+            app:key="full_duplex"
+            app:title="Full duplex"
+            app:defaultValue="false"
+            app:summaryOn="The big button toggles the mic; everyone is heard at once. Best with a headset."
+            app:summaryOff="Hold the big button to talk; others are muted while you hold it." />
+        <SwitchPreferenceCompat
+            app:key="relay"
+            app:title="Relay"
+            app:defaultValue="true"
+            app:summary="Forward what this phone hears to its other links, so phones out of each other's range still connect through it. Leave on." />
+        <SwitchPreferenceCompat
+            app:key="opus"
+            app:title="Opus compression"
+            app:defaultValue="true"
+            app:summary="About a tenth of the bandwidth of raw audio. Falls back to raw by itself if this phone cannot encode Opus. Applies the next time the mic is keyed." />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="WLAN — takes effect on the next Connect">
         <EditTextPreference
             app:key="multicast_group"

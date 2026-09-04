@@ -28,7 +28,8 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   lifecycle, only on the button or the notification action.
 - Settings: `SettingsActivity` is a stock `PreferenceFragmentCompat` over the default
   SharedPreferences; `Prefs` reads them with validated fallbacks and `SettingsRules` holds the
-  pure, unit-tested validation. Name and hop limit are pushed into the engine on every resume;
+  pure, unit-tested validation. Duplex mode, relay, codec, name and hop limit are pushed into
+  the engine on every bind and resume (the settings, not the engine, are the source of truth);
   group/port/passphrase are constructor arguments of the transports, so they need a reconnect.
   Sample rate is deliberately not a setting: 16 kHz is baked into the Opus path and the decimator.
 - `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.

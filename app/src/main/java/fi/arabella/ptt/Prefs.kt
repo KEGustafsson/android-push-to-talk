@@ -54,6 +54,10 @@ class Prefs(context: Context) {
     val passphrase: String get() = sp.getString(KEY_PASSPHRASE, null)?.takeIf { SettingsRules.validPassphrase(it) } ?: SettingsRules.DEFAULT_PASSPHRASE
     val hops: Int get() = sp.getString(KEY_HOPS, null)?.trim()?.takeIf { SettingsRules.validHops(it) }?.toInt() ?: SettingsRules.DEFAULT_HOPS
 
+    val fullDuplex: Boolean get() = sp.getBoolean(KEY_FULL_DUPLEX, false)
+    val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
+    val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
+
     fun bool(key: String, default: Boolean): Boolean = sp.getBoolean(key, default)
     fun string(key: String): String? = sp.getString(key, null)
     fun put(key: String, value: Boolean) = sp.edit().putBoolean(key, value).apply()
@@ -67,13 +71,14 @@ class Prefs(context: Context) {
         const val KEY_PASSPHRASE = "aware_passphrase"
         const val KEY_HOPS = "max_hops"
 
+        const val KEY_FULL_DUPLEX = "full_duplex"
+        const val KEY_RELAY = "relay"
+        const val KEY_OPUS = "opus"
+
         // Main screen state.
         const val KEY_USE_LAN = "use_lan"
         const val KEY_USE_BT = "use_bt"
         const val KEY_USE_AWARE = "use_aware"
         const val KEY_BT_PEER = "bt_peer"          // MAC address, or empty for "listen only"
-        const val KEY_FULL_DUPLEX = "full_duplex"
-        const val KEY_RELAY = "relay"
-        const val KEY_OPUS = "opus"
     }
 }

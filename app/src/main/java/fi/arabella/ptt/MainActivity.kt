@@ -24,7 +24,6 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.android.material.switchmaterial.SwitchMaterial
 import fi.arabella.ptt.transport.BluetoothTransport
 import fi.arabella.ptt.transport.LanTransport
 import fi.arabella.ptt.transport.Transport
@@ -50,17 +49,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var checkLan: CheckBox
     private lateinit var checkBt: CheckBox
     private lateinit var checkAware: CheckBox
-    private lateinit var duplexSwitch: SwitchMaterial
-    private lateinit var relaySwitch: SwitchMaterial
-    private lateinit var opusSwitch: SwitchMaterial
     private var pairedDevices: List<BluetoothDevice> = emptyList()
 
     private val connection = object : ServiceConnection {
-        /**
-         * Adopts the service's engine. A running session is the source of truth for the
-         * switches; an idle engine only has defaults, so anything the user flipped before
-         * the bind completed is pushed into it instead of being overwritten.
-         */
+        /** Adopts the service's engine and pushes the stored settings into it; they are the source of truth. */
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             val s = (binder as PttService.LocalBinder).service
             service = s
@@ -68,7 +60,6 @@ class MainActivity : AppCompatActivity() {
             s.rosterListener = { peers -> runOnUiThread { rosterView.text = renderRoster(peers) } }
             status.text = s.lastStatus
             rosterView.text = renderRoster(s.lastRoster)
-            if (!s.engine.isConnected) applyUiToEngine(s.engine)
             applySettings(s.engine)
             syncUi()
         }
@@ -96,9 +87,6 @@ class MainActivity : AppCompatActivity() {
         checkLan = findViewById(R.id.checkLan)
         checkBt = findViewById(R.id.checkBt)
         checkAware = findViewById(R.id.checkAware)
-        duplexSwitch = findViewById(R.id.duplexSwitch)
-        relaySwitch = findViewById(R.id.relaySwitch)
-        opusSwitch = findViewById(R.id.opusSwitch)
 
         settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
@@ -116,25 +104,9 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
-        duplexSwitch.setOnCheckedChangeListener { _, on ->
-            prefs.put(Prefs.KEY_FULL_DUPLEX, on)
-            engine?.mode = if (on) PttEngine.Mode.FULL_DUPLEX else PttEngine.Mode.HALF_DUPLEX
-            refreshPttLabel()
-        }
-        relaySwitch.setOnCheckedChangeListener { _, on ->
-            prefs.put(Prefs.KEY_RELAY, on)
-            engine?.relay = on
-        }
-        opusSwitch.setOnCheckedChangeListener { _, on ->
-            prefs.put(Prefs.KEY_OPUS, on)
-            engine?.codec = if (on) Packet.Codec.OPUS else Packet.Codec.PCM
-        }
         checkLan.isChecked = prefs.bool(Prefs.KEY_USE_LAN, true)
         checkAware.isChecked = prefs.bool(Prefs.KEY_USE_AWARE, false)
         checkBt.isChecked = prefs.bool(Prefs.KEY_USE_BT, false)     // after its listener, so the spinner fills
-        duplexSwitch.isChecked = prefs.bool(Prefs.KEY_FULL_DUPLEX, false)
-        relaySwitch.isChecked = prefs.bool(Prefs.KEY_RELAY, true)
-        opusSwitch.isChecked = prefs.bool(Prefs.KEY_OPUS, true)
 
         connectButton.setOnClickListener {
             val s = service ?: return@setOnClickListener
@@ -177,6 +149,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         engine?.let { applySettings(it) }
+        refreshPttLabel()
     }
 
     /** Unbinds without touching the session: a connected service keeps running as a started foreground service. */
@@ -204,29 +177,21 @@ class MainActivity : AppCompatActivity() {
         syncUi()
     }
 
-    /** The settings that apply without a reconnect: hop limit and the announced name. */
+    /**
+     * The settings that apply without a reconnect: duplex mode, relay, codec, hop limit
+     * and the announced name. Changing the mode un-keys the mic, which is what you want.
+     */
     private fun applySettings(e: PttEngine) {
+        e.mode = if (prefs.fullDuplex) PttEngine.Mode.FULL_DUPLEX else PttEngine.Mode.HALF_DUPLEX
+        e.relay = prefs.relay
+        e.codec = if (prefs.opus) Packet.Codec.OPUS else Packet.Codec.PCM
         e.maxHops = prefs.hops
         e.displayName = prefs.name ?: e.defaultName
     }
 
-    /** Pushes the switch positions into an idle engine. */
-    private fun applyUiToEngine(e: PttEngine) {
-        e.mode = if (duplexSwitch.isChecked) PttEngine.Mode.FULL_DUPLEX else PttEngine.Mode.HALF_DUPLEX
-        e.relay = relaySwitch.isChecked
-        e.codec = if (opusSwitch.isChecked) Packet.Codec.OPUS else Packet.Codec.PCM
-    }
-
-    /** Pulls connect state, mode, relay and codec from the engine into the widgets. */
+    /** Pulls the connect state from the engine into the widgets. */
     private fun syncUi() {
-        val e = engine
-        val connected = e?.isConnected == true
-        connectButton.text = if (connected) "Disconnect" else "Connect"
-        if (e != null) {
-            duplexSwitch.isChecked = e.mode == PttEngine.Mode.FULL_DUPLEX
-            relaySwitch.isChecked = e.relay
-            opusSwitch.isChecked = e.codec == Packet.Codec.OPUS
-        }
+        connectButton.text = if (engine?.isConnected == true) "Disconnect" else "Connect"
         refreshPttLabel()
     }
 
