@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">PTT</string>
+    <string name="notification_channel">Intercom session</string>
+    <string name="notification_title">PTT running</string>
+    <string name="notification_disconnect">Disconnect</string>
 </resources>

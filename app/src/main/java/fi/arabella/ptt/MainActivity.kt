@@ -4,9 +4,14 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.IBinder
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -24,9 +29,16 @@ import fi.arabella.ptt.transport.LanTransport
 import fi.arabella.ptt.transport.Transport
 import fi.arabella.ptt.transport.WifiAwareTransport
 
+/**
+ * Thin UI over [PttService]. The activity binds while visible and mirrors the
+ * service's engine state, so rotating, backgrounding or reopening the app never
+ * interrupts a running session.
+ */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var engine: PttEngine
+    private var service: PttService? = null
+    private val engine: PttEngine? get() = service?.engine
+
     private lateinit var status: TextView
     private lateinit var pttButton: Button
     private lateinit var connectButton: Button
@@ -37,6 +49,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var duplexSwitch: SwitchMaterial
     private lateinit var relaySwitch: SwitchMaterial
     private var pairedDevices: List<BluetoothDevice> = emptyList()
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            val s = (binder as PttService.LocalBinder).service
+            service = s
+            s.statusListener = { msg -> runOnUiThread { status.text = msg; syncUi() } }
+            status.text = s.lastStatus
+            syncUi()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            service = null
+        }
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,65 +80,91 @@ class MainActivity : AppCompatActivity() {
         duplexSwitch = findViewById(R.id.duplexSwitch)
         relaySwitch = findViewById(R.id.relaySwitch)
 
-        engine = PttEngine(this) { msg -> runOnUiThread { status.text = msg; refreshPttLabel() } }
-
         checkBt.setOnCheckedChangeListener { _, on ->
             btSpinner.visibility = if (on) View.VISIBLE else View.GONE
             if (on) loadPairedDevices()
         }
         duplexSwitch.setOnCheckedChangeListener { _, on ->
-            engine.mode = if (on) PttEngine.Mode.FULL_DUPLEX else PttEngine.Mode.HALF_DUPLEX
+            engine?.mode = if (on) PttEngine.Mode.FULL_DUPLEX else PttEngine.Mode.HALF_DUPLEX
             refreshPttLabel()
         }
-        relaySwitch.isChecked = engine.relay
-        relaySwitch.setOnCheckedChangeListener { _, on -> engine.relay = on }
+        relaySwitch.isChecked = true
+        relaySwitch.setOnCheckedChangeListener { _, on -> engine?.relay = on }
 
         connectButton.setOnClickListener {
-            if (engine.isConnected) {
-                engine.disconnect()
-                connectButton.text = "Connect"
-                status.text = "Disconnected"
+            val s = service ?: return@setOnClickListener
+            if (s.engine.isConnected) {
+                s.disconnect()
+                syncUi()
             } else if (hasPermissions()) {
-                connect()
+                connect(s)
             } else {
                 requestPermissions()
             }
         }
 
         pttButton.setOnTouchListener { _, ev ->
-            if (engine.mode == PttEngine.Mode.HALF_DUPLEX) {
+            val e = engine ?: return@setOnTouchListener false
+            if (e.mode == PttEngine.Mode.HALF_DUPLEX) {
                 when (ev.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> engine.startTalking()
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> engine.stopTalking()
+                    MotionEvent.ACTION_DOWN -> e.startTalking()
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> e.stopTalking()
                 }
                 true
             } else false
         }
         pttButton.setOnClickListener {
-            if (engine.mode == PttEngine.Mode.FULL_DUPLEX) engine.toggleTalking()
+            val e = engine ?: return@setOnClickListener
+            if (e.mode == PttEngine.Mode.FULL_DUPLEX) e.toggleTalking()
         }
 
         requestPermissions()
         refreshPttLabel()
     }
 
-    private fun connect() {
+    override fun onStart() {
+        super.onStart()
+        bindService(Intent(this, PttService::class.java), connection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onStop() {
+        service?.statusListener = null
+        service = null
+        unbindService(connection)   // the service keeps running while connected; see PttService
+        super.onStop()
+    }
+
+    private fun connect(s: PttService) {
+        val ctx = applicationContext
         val list = mutableListOf<Transport>()
-        if (checkLan.isChecked) list += LanTransport(this)
+        if (checkLan.isChecked) list += LanTransport(ctx)
         if (checkBt.isChecked) {
             val peer = pairedDevices.getOrNull(btSpinner.selectedItemPosition - 1) // 0 = listen only
-            list += BluetoothTransport(this, peer)
+            list += BluetoothTransport(ctx, peer)
         }
-        if (checkAware.isChecked) list += WifiAwareTransport(this, engine.senderId)
+        if (checkAware.isChecked) list += WifiAwareTransport(ctx, s.engine.senderId)
         if (list.isEmpty()) { status.text = "Pick at least one transport"; return }
-        engine.connect(list)
-        connectButton.text = "Disconnect"
+        s.connect(list)
+        syncUi()
+    }
+
+    /** Pulls connect state, mode and relay from the engine into the widgets. */
+    private fun syncUi() {
+        val e = engine
+        val connected = e?.isConnected == true
+        connectButton.text = if (connected) "Disconnect" else "Connect"
+        if (e != null) {
+            duplexSwitch.isChecked = e.mode == PttEngine.Mode.FULL_DUPLEX
+            relaySwitch.isChecked = e.relay
+        }
+        refreshPttLabel()
     }
 
     private fun refreshPttLabel() {
-        pttButton.text = when (engine.mode) {
+        val e = engine
+        pttButton.text = when (e?.mode ?: PttEngine.Mode.HALF_DUPLEX) {
             PttEngine.Mode.HALF_DUPLEX -> "HOLD TO TALK"
-            PttEngine.Mode.FULL_DUPLEX -> if (engine.isTalking) "MIC ON — TAP TO MUTE" else "MIC OFF — TAP TO TALK"
+            PttEngine.Mode.FULL_DUPLEX -> if (e?.isTalking == true) "MIC ON — TAP TO MUTE" else "MIC OFF — TAP TO TALK"
         }
     }
 
@@ -125,6 +177,7 @@ class MainActivity : AppCompatActivity() {
         btSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
     }
 
+    /** Permissions without which Connect cannot work. */
     private fun requiredPermissions(): Array<String> {
         val list = mutableListOf(Manifest.permission.RECORD_AUDIO)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) list += Manifest.permission.BLUETOOTH_CONNECT
@@ -134,16 +187,18 @@ class MainActivity : AppCompatActivity() {
         return list.toTypedArray()
     }
 
+    /** Nice to have: without it the foreground notification is hidden on Android 13+, but the service still runs. */
+    private fun optionalPermissions(): Array<String> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) arrayOf(Manifest.permission.POST_NOTIFICATIONS) else emptyArray()
+
     private fun hasPermissions() = requiredPermissions().all {
         ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun requestPermissions() {
-        if (!hasPermissions()) ActivityCompat.requestPermissions(this, requiredPermissions(), 1)
-    }
-
-    override fun onDestroy() {
-        engine.disconnect()
-        super.onDestroy()
+        val missing = (requiredPermissions() + optionalPermissions()).filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing.toTypedArray(), 1)
     }
 }
