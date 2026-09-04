@@ -15,6 +15,7 @@ interface Transport {
     val relayWithin: Boolean
 
     fun start(onPacket: (packet: ByteArray, transport: Transport, link: Any?) -> Unit, onStatus: (String) -> Unit)
-    fun send(packet: ByteArray, except: Any? = null)
+    /** Sends to every link but [except]; true if the packet went to at least one. Send failures are transient and count as sent. */
+    fun send(packet: ByteArray, except: Any? = null): Boolean
     fun stop()
 }

@@ -400,11 +400,14 @@ class WifiAwareTransport(
         }
     }
 
-    override fun send(packet: ByteArray, except: Any?) {
+    override fun send(packet: ByteArray, except: Any?): Boolean {
+        var sent = false
         for (link in links) {
             if (link === except) continue
+            sent = true
             try { link.send(packet) } catch (_: IOException) {}
         }
+        return sent
     }
 
     override fun stop() {

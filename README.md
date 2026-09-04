@@ -74,7 +74,15 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    next Connect. The main screen keeps only what changes per trip - transports and the
    Bluetooth peer - and remembers them, so a normal day is open the app, flip the channel
    switch on.
-13. **Status** (menu): everything the main screen leaves out - each crew member with id,
+13. **Talk button** (Settings > Talking): while on the channel, a headset or media button and
+   the volume keys toggle the mic - press to talk, press again to stop - with a short buzz on,
+   a double buzz off. Works with the screen off, which is the point; turn off Keep screen on in
+   the same section and the phone can live in a pocket. Volume keys do nothing else while on
+   channel. Defaults to both; set to Off to get the volume keys back.
+14. **Packet loss**: a missed 20 ms frame is filled with a fading repeat of the previous one
+   (up to three in a row, then silence) instead of a click of silence, for Opus and PCM alike.
+   The Status screen counts concealed frames, which is a good measure of how a link is doing.
+15. **Status** (menu): everything the main screen leaves out - each crew member with id,
    transport, hops, what they are on and when last heard; this phone's addresses (Wi-Fi,
    the Aware link), the multicast group and port, Bluetooth name and hop limit in use;
    packet counters (received, sent, relayed, duplicates dropped, hellos); and the last 40
@@ -86,6 +94,7 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `audio/Mixer` — per-sender jitter queue + summing mixer
 - `audio/OpusEncoder`, `audio/OpusDecoder` — MediaCodec `audio/opus`, one decoder per sender
 - `audio/Decimator` — 48 kHz decoder output back down to 16 kHz
+- `audio/Conceal` — packet-loss concealment: the last frame, fading, for up to three missing slots
 - `transport/LanTransport` — UDP multicast + subnet broadcast
 - `transport/BluetoothTransport` — RFCOMM, server + client
 - `transport/WifiAwareTransport` — NAN publish/subscribe, TCP data paths, lower‑id‑initiates tie‑break

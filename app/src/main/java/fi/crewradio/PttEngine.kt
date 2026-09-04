@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import fi.crewradio.audio.AudioCapture
 import fi.crewradio.audio.AudioConfig
+import fi.crewradio.audio.Conceal
 import fi.crewradio.audio.Mixer
 import fi.crewradio.audio.OpusDecoder
 import fi.crewradio.audio.OpusEncoder
@@ -44,7 +45,9 @@ class Peer(
 class Stats(
     val rxPackets: Long, val rxBytes: Long,
     val txPackets: Long, val txBytes: Long,
-    val relayed: Long, val duplicates: Long, val hellos: Long
+    val relayed: Long, val duplicates: Long, val hellos: Long,
+    /** 20 ms slots the mixer filled with a faded repeat because the packet never came. */
+    val concealed: Long
 )
 
 /**
@@ -119,7 +122,8 @@ class PttEngine(
     private val decoders = ConcurrentHashMap<Int, OpusDecoder>()
     private val undecodable = ConcurrentHashMap.newKeySet<Int>()   // senders whose decoder failed; reported once
     private val packetCount = AtomicInteger()
-    private val seq = AtomicInteger()                                // shared by the audio thread and the heartbeat
+    private val audioSeq = AtomicInteger()                           // one per frame, so a gap in it is lost audio
+    private val helloSeq = AtomicInteger()                           // hellos count separately; they are not frames
     /**
      * Packet counters for one session. connect() starts a fresh set; a callback from a
      * transport that was still winding down keeps incrementing the old set, which nothing
@@ -133,12 +137,13 @@ class PttEngine(
         val relayed = AtomicLong()
         val duplicates = AtomicLong()
         val hellos = AtomicLong()
-        fun snapshot() = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get())
+        fun snapshot(concealed: Long) = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get(), concealed)
     }
     @Volatile private var counters = Counters()
     @Volatile private var talking = false
 
     private val nodes = ConcurrentHashMap<Int, Node>()
+    private val seqTracker = SeqTracker()                            // per sender audio sequence: gaps mean lost frames
     private var heartbeat: ScheduledExecutorService? = null
     @Volatile private var lastRoster: List<Peer> = emptyList()
     private var lastRosterKey = ""
@@ -154,15 +159,17 @@ class PttEngine(
         @Volatile var talking = false
     }
 
-    private val seenCapacity = 4096
-    private val seen = object : LinkedHashMap<Long, Boolean>(seenCapacity, 0.75f, false) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Boolean>?) = size > seenCapacity
+    private class SeenCache(private val capacity: Int) : LinkedHashMap<Long, Boolean>(capacity, 0.75f, false) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Boolean>?) = size > capacity
     }
+    private val seen = SeenCache(4096)          // audio: ~80 s of one talker, plenty for a relay echo
+    private val seenHellos = SeenCache(512)     // hellos: 1 Hz per node, their own sequence space
 
-    /** Returns true if this (sender, seq) is new. */
-    private fun markSeen(senderId: Int, seq: Int): Boolean {
+    /** Returns true if this (sender, seq) is new; hellos and audio number themselves independently. */
+    private fun markSeen(senderId: Int, seq: Int, codec: Packet.Codec): Boolean {
         val key = (senderId.toLong() shl 32) or (seq.toLong() and 0xFFFF_FFFFL)
-        synchronized(seen) { return seen.put(key, true) == null }
+        val cache = if (codec == Packet.Codec.HELLO) seenHellos else seen
+        synchronized(cache) { return cache.put(key, true) == null }
     }
 
     /** Starts playback and the given transports; any transport that fails to start is reported and dropped. */
@@ -198,12 +205,14 @@ class PttEngine(
         mixer.stop()
         releaseDecoders()
         synchronized(seen) { seen.clear() }
+        synchronized(seenHellos) { seenHellos.clear() }
         nodes.clear()
+        seqTracker.clear()
         publishRoster()
         audioManager.mode = AudioManager.MODE_NORMAL
     }
 
-    fun stats(): Stats = counters.snapshot()
+    fun stats(): Stats = counters.snapshot(mixer.concealedFrames.get())
 
     /** Keys the mic: opens the encoder (if Opus) and the capture; on failure everything is released again. */
     fun startTalking() {
@@ -262,8 +271,8 @@ class PttEngine(
 
     /** Stamps and sends one of our own packets on every transport. */
     private fun broadcast(codec: Packet.Codec, payload: ByteArray) {
-        val s = seq.getAndIncrement()
-        markSeen(senderId, s)
+        val s = (if (codec == Packet.Codec.HELLO) helloSeq else audioSeq).getAndIncrement()
+        markSeen(senderId, s, codec)
         val packet = Packet.encode(senderId, s, codec, maxHops, payload)
         val c = counters
         c.txPackets.incrementAndGet()
@@ -277,7 +286,7 @@ class PttEngine(
         val c = counters                                  // this session's set, whatever happens meanwhile
         val h = Packet.parse(p) ?: return
         if (h.senderId == senderId) return
-        if (!markSeen(h.senderId, h.seq)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
+        if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
         c.rxPackets.incrementAndGet()
         c.rxBytes.addAndGet(p.size.toLong())
 
@@ -287,8 +296,8 @@ class PttEngine(
             Packet.setTtl(p, ttl - 1)
             var forwarded = false
             for (t in transports) {
-                if (t === from) { if (t.relayWithin) { t.send(p, except = link); forwarded = true } }
-                else { t.send(p); forwarded = true }
+                if (t === from) { if (t.relayWithin && t.send(p, except = link)) forwarded = true }
+                else if (t.send(p)) forwarded = true
             }
             if (forwarded) c.relayed.incrementAndGet()
         }
@@ -301,7 +310,18 @@ class PttEngine(
         heardAudio(h.senderId, from)
 
         if (packetCount.incrementAndGet() and 0xFF == 0) pruneDecoders()
-        if (mode == Mode.HALF_DUPLEX && talking) return   // radio semantics
+        val playing = !(mode == Mode.HALF_DUPLEX && talking)   // radio semantics: not while we transmit
+
+        // Audio frames number themselves consecutively, so a gap is lost audio and its slots are
+        // reserved before this frame is queued. Admission and reservation stay atomic per sender:
+        // the same sender's frames can arrive on several transport threads at once. A late frame
+        // is dropped, its slot was concealed already.
+        synchronized(seqTracker) {
+            val gap = seqTracker.admit(h.senderId, h.seq)
+            if (gap < 0) return
+            if (playing && gap in 1..Conceal.MAX_FRAMES) mixer.conceal(h.senderId, gap)
+        }
+        if (!playing) return
 
         when (h.codec) {
             Packet.Codec.PCM -> mixer.push(h.senderId, p, Packet.HEADER, p.size - Packet.HEADER)
@@ -325,6 +345,7 @@ class PttEngine(
                 changed = true
             }
         }
+        seqTracker.retain(nodes.keys)
         if (changed) publishRoster()
     }
 

@@ -194,10 +194,11 @@ class LanTransport(
     }
 
     /** Sends to the group and, when we know one, to the subnet broadcast address as well. */
-    override fun send(packet: ByteArray, except: Any?) {
-        val s = socket ?: return
+    override fun send(packet: ByteArray, except: Any?): Boolean {
+        val s = socket ?: return false
         sendTo(s, packet, groupAddr)
         broadcastAddr?.let { sendTo(s, packet, it) }
+        return true
     }
 
     private fun sendTo(s: MulticastSocket, packet: ByteArray, to: InetAddress) {
