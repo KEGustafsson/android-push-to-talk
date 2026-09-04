@@ -1,11 +1,12 @@
 # PTT — push-to-talk / intercom for Android over WLAN or Bluetooth
 
-Kotlin, minSdk 29. No third-party audio libs: raw 16 kHz mono PCM16 in 20 ms frames.
+Kotlin, minSdk 29. No third-party audio libs: 16 kHz mono in 20 ms frames, sent as
+Opus (via the platform codec) or raw PCM16.
 
 ## Build
 Open the folder in Android Studio (Koala or newer, for Android Gradle Plugin 8.5) and build, or run
 `./gradlew assembleDebug` with an Android SDK (platform 34) installed. Install on
-two or more phones.
+two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 
 ## Use
 1. Tick one or more transports. A phone running several at once bridges
@@ -36,21 +37,29 @@ two or more phones.
    out of power save with the screen off, so expect slightly higher latency there
    until the screen comes back on.
 
+7. **Opus compression** (on by default): frames are encoded with the phone's built-in
+   Opus codec at 24 kbit/s, roughly a tenth of raw PCM, which is what makes Bluetooth
+   and marginal Wi‑Fi usable. Every packet says which codec it carries, so Opus and
+   PCM phones can share a net. If a phone has no working Opus encoder it falls back to
+   PCM by itself and says so in the status line. Changes take effect the next time
+   the mic is keyed.
+8. **Hop limit**: packets carry a hop count (4 by default) that each relay decrements,
+   so a flood cannot circulate forever on a large mesh.
+
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
 - `audio/AudioPlayback` — AudioTrack, streaming
 - `audio/Mixer` — per-sender jitter queue + summing mixer
+- `audio/OpusEncoder`, `audio/OpusDecoder` — MediaCodec `audio/opus`, one decoder per sender
+- `audio/Decimator` — 48 kHz decoder output back down to 16 kHz
 - `transport/LanTransport` — UDP multicast
 - `transport/BluetoothTransport` — RFCOMM, server + client
 - `transport/WifiAwareTransport` — NAN publish/subscribe, TCP data paths, lower‑id‑initiates tie‑break
 - `transport/StreamLink` — uint16 length‑prefixed framing shared by BT and Aware
-- `Packet` — 10-byte header: 'PT', senderId, seq
-- `PttEngine` — modes, multi‑transport, relay with (senderId, seq) seen‑cache
+- `Packet` — 13-byte header: 'PT', version, codec, ttl, senderId, seq
+- `PttEngine` — modes, codec, multi‑transport, relay with (senderId, seq) seen‑cache and ttl
 - `PttService` — foreground service owning the engine, wake/Wi‑Fi locks, notification
 - `MainActivity` — UI, permissions; binds to the service while visible
 
 ## Next steps if you take it further
-- Opus (libopus via JNI or `androidx.media3`) to cut bandwidth ~10×, which
-  matters most on Bluetooth and marginal Wi-Fi.
-- Hop count in the header if you want to cap relay depth on big networks.
 - Roster/heartbeat packets so the UI can show who is online.

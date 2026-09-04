@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var checkAware: CheckBox
     private lateinit var duplexSwitch: SwitchMaterial
     private lateinit var relaySwitch: SwitchMaterial
+    private lateinit var opusSwitch: SwitchMaterial
     private var pairedDevices: List<BluetoothDevice> = emptyList()
 
     private val connection = object : ServiceConnection {
@@ -82,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         checkAware = findViewById(R.id.checkAware)
         duplexSwitch = findViewById(R.id.duplexSwitch)
         relaySwitch = findViewById(R.id.relaySwitch)
+        opusSwitch = findViewById(R.id.opusSwitch)
 
         checkBt.setOnCheckedChangeListener { _, on ->
             btSpinner.visibility = if (on) View.VISIBLE else View.GONE
@@ -93,6 +95,10 @@ class MainActivity : AppCompatActivity() {
         }
         relaySwitch.isChecked = true
         relaySwitch.setOnCheckedChangeListener { _, on -> engine?.relay = on }
+        opusSwitch.isChecked = true
+        opusSwitch.setOnCheckedChangeListener { _, on ->
+            engine?.codec = if (on) Packet.Codec.OPUS else Packet.Codec.PCM
+        }
 
         connectButton.setOnClickListener {
             val s = service ?: return@setOnClickListener
@@ -162,6 +168,7 @@ class MainActivity : AppCompatActivity() {
         if (e != null) {
             duplexSwitch.isChecked = e.mode == PttEngine.Mode.FULL_DUPLEX
             relaySwitch.isChecked = e.relay
+            opusSwitch.isChecked = e.codec == Packet.Codec.OPUS
         }
         refreshPttLabel()
     }

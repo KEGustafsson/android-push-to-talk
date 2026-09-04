@@ -6,29 +6,35 @@ flooding relay so multiple transports and multi-hop topologies work.
 
 ## Stack
 - Kotlin, Android Gradle Plugin 8.5, Kotlin 2.0, minSdk 29, targetSdk 34, JDK 17.
-- No third-party audio libs. Raw 16 kHz mono PCM16, 20 ms frames (see `audio/AudioConfig`).
+- No third-party audio libs. 16 kHz mono, 20 ms frames (see `audio/AudioConfig`); on the wire
+  as Opus through the platform `MediaCodec` (`audio/opus`, AOSP software codec since API 29)
+  or raw PCM16. The AOSP Opus decoder always outputs 48 kHz, hence `audio/Decimator`.
 - Build: `./gradlew assembleDebug` (wrapper is committed; needs an Android SDK with
   platform 34 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
-- No unit tests yet. Real testing needs two or more physical phones; the emulator
-  has no Bluetooth or Wi-Fi Aware.
+- Unit tests (JUnit 4, pure Kotlin only, no Android runtime): `./gradlew testDebugUnitTest`.
+  Real testing needs two or more physical phones; the emulator has no Bluetooth or Wi-Fi Aware,
+  and MediaCodec behaviour can only be checked on a device.
 
 ## Architecture
 ```
 MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | BluetoothTransport | WifiAwareTransport)
-                                         |-> AudioCapture (mic, AEC/NS)  -> Packet.encode -> transports
-                                         |-> Mixer (per-sender jitter queue + sum) -> AudioPlayback
+                                         |-> AudioCapture (mic, AEC/NS) -> OpusEncoder? -> Packet.encode -> transports
+                                         |-> OpusDecoder per sender -> Mixer (per-sender jitter queue + sum) -> AudioPlayback
 ```
 - `PttService`: bound while the activity is visible, promoted to a started foreground
   service (types microphone|connectedDevice) with a partial wake lock and a low-latency
   Wi-Fi lock for the duration of a session. Owns the engine; the notification mirrors the
   status line and has a Disconnect action. The activity never disconnects on its own
   lifecycle, only on the button or the notification action.
-- `Packet`: 10-byte header `'P' 'T' | senderId int32 | seq int32 | PCM16LE`.
+- `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.
+  Codec 0 = PCM16LE frame, 1 = Opus packet. Receivers decode per packet, so codecs can mix.
 - `Transport` interface: `start(onPacket, onStatus)`, `send(packet, except)`, `stop()`,
   `relayWithin` (false for multicast). Stream transports frame packets with
   `StreamLink` (uint16 BE length prefix).
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
-  transports/links if `relay` is on, then play unless half-duplex and transmitting.
+  transports/links if `relay` is on and ttl > 1 (decremented in place), then decode and
+  play unless half-duplex and transmitting. Opus decoders are per sender, created on demand
+  and released after 30 s of silence. Encoder failure falls back to PCM and reports it.
 - Wi-Fi Aware: every node publishes and subscribes; lower senderId initiates the
   data path (one link per pair). Publisher uses accept-any on API 31+.
 
@@ -41,9 +47,9 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-1. Opus encoding (libopus JNI or media3) to cut bandwidth ~10x — matters for BT and weak Wi-Fi.
-2. TTL / hop-count byte in the header to bound relay depth on larger networks.
-3. Roster and heartbeat packets so the UI can show who is online and via which transport.
-4. Reconnect logic for BT and Aware links after a drop (currently manual reconnect).
-5. Settings screen: multicast group/port, Aware passphrase, sample rate.
-6. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
+1. Roster and heartbeat packets so the UI can show who is online and via which transport.
+2. Reconnect logic for BT and Aware links after a drop (currently manual reconnect).
+3. Settings screen: multicast group/port, Aware passphrase, sample rate, hop limit.
+4. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
+5. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
+   letting the jitter queue underrun.

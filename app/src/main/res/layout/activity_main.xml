@@ -40,6 +40,12 @@
         android:layout_height="wrap_content"
         android:text="Relay (forward others' audio, mesh mode)" />
 
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/opusSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Opus compression (about 10x less bandwidth)" />
+
     <Button
         android:id="@+id/connectButton"
         android:layout_width="match_parent"
