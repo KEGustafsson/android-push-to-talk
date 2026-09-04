@@ -27,7 +27,6 @@ import java.net.Socket
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import kotlin.concurrent.thread
 
 /**
  * Wi-Fi Aware (NAN): infrastructure-free, no access point, no pairing.
@@ -82,7 +81,7 @@ class WifiAwareTransport(
         running = true
 
         server = ServerSocket(port)
-        thread(name = "ptt-aware-accept") {
+        transportThread("ptt-aware-accept", { onStatus("Aware accept stopped: ${it.message}") }) {
             while (running) {
                 try {
                     val s = server?.accept() ?: break
@@ -166,7 +165,7 @@ class WifiAwareTransport(
                 val info = caps.transportInfo as? WifiAwareNetworkInfo ?: return
                 val addr = info.peerIpv6Addr ?: return
                 dialed = true
-                thread(name = "ptt-aware-dial") {
+                transportThread("ptt-aware-dial", { onStatus("Aware dial stopped: ${it.message}") }) {
                     try {
                         val sock = network.socketFactory.createSocket()
                         sock.connect(InetSocketAddress(addr, info.port), 5000)
@@ -190,7 +189,7 @@ class WifiAwareTransport(
         val link = StreamLink(socket.inetAddress.hostAddress ?: "?", socket.getInputStream(), socket.getOutputStream()) { socket.close() }
         links.add(link)
         onStatus("Aware: $why (${links.size} link${if (links.size == 1) "" else "s"})")
-        thread(name = "ptt-aware-rx") {
+        transportThread("ptt-aware-rx", { onStatus("Aware rx stopped: ${it.message}") }) {
             try {
                 link.readLoop { onPacket(it, this, link) }
             } catch (e: IOException) {

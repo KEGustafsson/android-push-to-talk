@@ -30,7 +30,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   Codec 0 = PCM16LE frame, 1 = Opus packet. Receivers decode per packet, so codecs can mix.
 - `Transport` interface: `start(onPacket, onStatus)`, `send(packet, except)`, `stop()`,
   `relayWithin` (false for multicast). Stream transports frame packets with
-  `StreamLink` (uint16 BE length prefix).
+  `StreamLink` (uint16 BE length prefix). A transport whose `start` throws is reported
+  and dropped from the engine, never left in place silently swallowing frames.
+- `LanTransport` sends every frame twice — to the multicast group and to the interface's
+  IPv4 broadcast address — because plenty of APs filter multicast. One wildcard-bound
+  socket receives both; the seen-cache drops the duplicate.
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
   transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
   decremented in place), then decode and play unless half-duplex and transmitting. Opus
@@ -45,6 +49,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   designated master, the app must survive any phone dropping out.
 - Anything blocking (sockets, AudioTrack.write) lives on its own named thread
   (`ptt-*`); never on the main thread.
+- Transport threads go through `transport/transportThread`: an uncaught throwable on a
+  plain thread kills the whole app, and the Bluetooth/Aware stacks throw `SecurityException`
+  for a missing runtime permission, not just `IOException`. Catch broadly, report, stay up.
+- Careful with `apply`/`with` on a socket: `port` inside such a block is
+  `DatagramSocket.getPort()` (-1 unconnected), not the transport's own `port`.
 - `onStatus` strings are shown verbatim in the UI status line; keep them short.
 - Status/errors are reported, never swallowed silently, except transient send failures.
 

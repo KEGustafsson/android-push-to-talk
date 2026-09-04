@@ -12,8 +12,12 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 1. Tick one or more transports. A phone running several at once bridges
    them (e.g. boat Wi‑Fi on one side, Wi‑Fi Aware on the other).
 2. LAN: all phones on the same network just press Connect — UDP multicast
-   239.255.42.1:47474, no server. Works on a boat router or a phone hotspot;
-   often blocked on guest/public Wi-Fi.
+   239.255.42.1:47474, no server. Every frame also goes to the subnet broadcast
+   address, so it still works on routers that filter multicast; the receivers drop
+   whichever copy arrives second. Works on a boat router or a phone hotspot. Guest
+   or public Wi-Fi with client isolation blocks both copies — use Bluetooth or
+   Wi-Fi Aware there. The status line shows "LAN: hearing <ip>" the first time a
+   packet arrives, which is the quickest way to tell a network problem from an app one.
 3. Bluetooth: pair the phones first (system settings). On one phone choose
    "Listen only", on the other pick that phone from the list, then Connect on both.
 3b. Wi‑Fi Aware: nothing to set up — phones discover each other directly,
@@ -56,10 +60,11 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `audio/Mixer` — per-sender jitter queue + summing mixer
 - `audio/OpusEncoder`, `audio/OpusDecoder` — MediaCodec `audio/opus`, one decoder per sender
 - `audio/Decimator` — 48 kHz decoder output back down to 16 kHz
-- `transport/LanTransport` — UDP multicast
+- `transport/LanTransport` — UDP multicast + subnet broadcast
 - `transport/BluetoothTransport` — RFCOMM, server + client
 - `transport/WifiAwareTransport` — NAN publish/subscribe, TCP data paths, lower‑id‑initiates tie‑break
 - `transport/StreamLink` — uint16 length‑prefixed framing shared by BT and Aware
+- `transport/Threads` — `transportThread`, so a transport thread reports instead of killing the app
 - `Packet` — 13-byte header: 'PT', version, codec, ttl, senderId, seq
 - `PttEngine` — modes, codec, multi‑transport, relay with (senderId, seq) seen‑cache and ttl
 - `PttService` — foreground service owning the engine, wake/Wi‑Fi locks, notification

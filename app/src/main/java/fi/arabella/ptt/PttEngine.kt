@@ -79,7 +79,7 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         synchronized(seen) { return seen.put(key, true) == null }
     }
 
-    /** Starts playback and the given transports; any transport that fails to start is reported and skipped. */
+    /** Starts playback and the given transports; any transport that fails to start is reported and dropped. */
     fun connect(list: List<Transport>) {
         disconnect()
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
@@ -87,7 +87,14 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         mixer.start()
         for (t in list) {
             transports.add(t)
-            try { t.start(::onPacket, onStatus) } catch (e: Exception) { onStatus("${t.name}: ${e.message}") }
+            try {
+                t.start(::onPacket, onStatus)
+            } catch (e: Exception) {
+                // A transport that never started would silently swallow every frame we hand it.
+                onStatus("${t.name} failed: ${e.message}")
+                transports.remove(t)
+                try { t.stop() } catch (_: Exception) {}
+            }
         }
     }
 
