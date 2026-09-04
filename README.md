@@ -53,6 +53,13 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 9. **Same version everywhere**: the packet header changed with Opus support and there is
    no compatibility mode. Phones on an older build simply hear nothing from newer ones
    (and vice versa), so update the whole crew together.
+10. **Reconnect**: a session keeps itself alive until you press Disconnect. A Bluetooth
+   peer that drops out of range is re-dialled with a growing delay (1 s up to 15 s); a
+   Wi‑Fi Aware peer is re-dialled while it is still discoverable and picked up again when
+   it reappears; when Wi‑Fi itself goes away, Aware re-attaches and LAN re-joins the
+   multicast group as soon as it is back. The status line says what it is waiting for.
+   Whichever phone dialled a link is the one that restores it, so the "Listen only" side
+   of a Bluetooth pair never has to do anything.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
@@ -65,6 +72,7 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `transport/WifiAwareTransport` — NAN publish/subscribe, TCP data paths, lower‑id‑initiates tie‑break
 - `transport/StreamLink` — uint16 length‑prefixed framing shared by BT and Aware
 - `transport/Threads` — `transportThread`, so a transport thread reports instead of killing the app
+- `transport/Backoff` — 1 s → 15 s retry schedule shared by every reconnect path
 - `Packet` — 13-byte header: 'PT', version, codec, ttl, senderId, seq
 - `PttEngine` — modes, codec, multi‑transport, relay with (senderId, seq) seen‑cache and ttl
 - `PttService` — foreground service owning the engine, wake/Wi‑Fi locks, notification

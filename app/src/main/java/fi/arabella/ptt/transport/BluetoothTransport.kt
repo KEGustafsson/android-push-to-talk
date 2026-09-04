@@ -19,6 +19,10 @@ import java.util.concurrent.CopyOnWriteArrayList
  * connects to one chosen paired peer. With the engine's relay enabled, a phone
  * holding several links forwards between them, so a chain A-B-C works.
  *
+ * Reconnect: the dialled link is re-dialled with [Backoff] whenever it drops, for as long
+ * as the session runs, and the server socket is re-created if the adapter is toggled.
+ * An accepted link is the other side's job to restore — it dialled us, it dials again.
+ *
  * Throughput: 16 kHz PCM16 = 32 kB/s, comfortably inside RFCOMM's practical limit.
  *
  * Every call into the Bluetooth stack is treated as able to throw: on Android 12+ the
@@ -37,8 +41,13 @@ class BluetoothTransport(
 
     private val appContext = context.applicationContext
     private val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
+    /** Resolved now, while the adapter is on: with it off, `name` is null and retries would show the MAC. */
+    private val peerLabel: String? = peer?.let { label(it) }
     private val links = CopyOnWriteArrayList<StreamLink>()
-    private var server: BluetoothServerSocket? = null
+    private val lifecycle = Any()                       // orders "add a link" against "stop and close them all"
+    @Volatile private var server: BluetoothServerSocket? = null
+    @Volatile private var dialThread: Thread? = null
+    @Volatile private var dialing: BluetoothSocket? = null   // mid-connect(); interrupt() does not abort that, close() does
     @Volatile private var running = false
     private lateinit var onPacket: (ByteArray, Transport, Any?) -> Unit
     private lateinit var onStatus: (String) -> Unit
@@ -51,63 +60,82 @@ class BluetoothTransport(
             return
         }
         running = true
-
-        // A failed listen must not stop us from dialling out, so the two halves are independent.
-        try {
-            val srv = adapter.listenUsingRfcommWithServiceRecord("PTT", SERVICE_UUID)
-            server = srv
-            transportThread("ptt-bt-accept", { onStatus("BT accept stopped: ${it.message}") }) {
-                acceptLoop(srv)
-            }
-        } catch (e: Exception) {
-            onStatus("BT: can't listen (${e.message})")
-        }
-
-        peer?.let { dev ->
-            transportThread("ptt-bt-connect", { onStatus("BT connect stopped: ${it.message}") }) {
-                connectLoop(dev)
-            }
-        }
-        onStatus("BT: listening" + (peer?.let { ", connecting to ${label(it)}" } ?: ""))
+        transportThread("ptt-bt-listen", { onStatus("BT listener stopped: ${it.message}") }) { listenLoop() }
+        peer?.let { redial(it) }
+        onStatus("BT: listening" + (peerLabel?.let { ", connecting to $it" } ?: ""))
     }
 
-    private fun acceptLoop(srv: BluetoothServerSocket) {
+    /**
+     * Serves incoming connections for the whole session. The server socket dies when the
+     * adapter is toggled; it is then re-created with backoff rather than given up on.
+     */
+    private fun listenLoop() {
+        val backoff = Backoff()
         while (running) {
-            val s = try {
-                srv.accept()
+            val srv = try {
+                adapter.listenUsingRfcommWithServiceRecord("PTT", SERVICE_UUID)
             } catch (e: Exception) {
-                if (running) onStatus("BT accept error: ${e.message}")
-                return
+                if (!running) return
+                val wait = backoff.next()
+                onStatus("BT: can't listen (${e.message}), retry in ${wait / 1000}s")
+                if (!sleepQuietly(wait)) return
+                continue
             }
-            addLink(s, "accepted ${label(s.remoteDevice)}")
+            server = srv
+            if (!running) { srv.close(); return }        // stop() raced us; leave no listener behind
+            backoff.reset()
+            while (running) {
+                val s = try { srv.accept() } catch (_: Exception) { break }
+                try {
+                    addLink(s, "accepted ${label(s.remoteDevice)}", isDialed = false)
+                } catch (e: Exception) {                // the peer hung up before we got its streams; keep serving
+                    try { s.close() } catch (_: Exception) {}
+                    onStatus("BT: accept failed (${e.message})")
+                }
+            }
+            try { srv.close() } catch (_: Exception) {}
+            server = null
+            if (!running) return
+            onStatus("BT: listener dropped, restarting")
+            if (!sleepQuietly(backoff.next())) return
+        }
+    }
+
+    /** Starts a dial thread for [dev]: at start, and again whenever our link to it drops. */
+    private fun redial(dev: BluetoothDevice) {
+        dialThread = transportThread("ptt-bt-connect", { onStatus("BT connect stopped: ${it.message}") }) {
+            dialLoop(dev)
         }
     }
 
     /**
-     * Dials the chosen peer, retrying a few times: the other phone may not have pressed
-     * Connect yet, and Samsung stacks routinely fail the first attempt after pairing.
+     * Dials [dev] until it answers, with backoff: the other phone may not have pressed
+     * Connect yet, may be out of range, or (Samsung) may just fail the first attempt.
      * A socket that failed to connect is closed — a leaked one keeps the RFCOMM channel
-     * busy and makes every later attempt fail too.
+     * busy and makes every later attempt fail too. Returns once the link is up; the
+     * link's reader calls [redial] when it drops.
      */
-    private fun connectLoop(dev: BluetoothDevice) {
+    private fun dialLoop(dev: BluetoothDevice) {
         cancelDiscoveryQuietly()
-        var attempt = 0
-        while (running && attempt < CONNECT_ATTEMPTS) {
-            attempt++
+        val backoff = Backoff()
+        while (running) {
             var socket: BluetoothSocket? = null
             try {
                 socket = dev.createRfcommSocketToServiceRecord(SERVICE_UUID)
+                dialing = socket
                 socket.connect()
-                addLink(socket, "connected to ${label(dev)}")
+                dialing = null
+                addLink(socket, "connected to ${peerLabel ?: label(dev)}", isDialed = true)
                 return
             } catch (e: Exception) {
+                dialing = null
                 try { socket?.close() } catch (_: Exception) {}
                 if (!running) return
-                onStatus("BT connect ${label(dev)} failed $attempt/$CONNECT_ATTEMPTS (${e.message})")
-                try { Thread.sleep(RETRY_MS) } catch (_: InterruptedException) { return }
+                val wait = backoff.next()
+                onStatus("BT: ${peerLabel ?: label(dev)} not answering, retry in ${wait / 1000}s")
+                if (!sleepQuietly(wait)) return
             }
         }
-        if (running) onStatus("BT: gave up on ${label(dev)} — press Connect on it first")
     }
 
     /**
@@ -127,18 +155,24 @@ class BluetoothTransport(
     private fun label(dev: BluetoothDevice): String =
         (try { dev.name } catch (_: SecurityException) { null }) ?: dev.address
 
-    private fun addLink(socket: BluetoothSocket, why: String) {
-        val link = StreamLink(label(socket.remoteDevice), socket.inputStream, socket.outputStream) { socket.close() }
-        links.add(link)
+    /** Registers a connected socket as a link, unless [stop] already ran — then it is closed instead. */
+    private fun addLink(socket: BluetoothSocket, why: String, isDialed: Boolean) {
+        val dev = socket.remoteDevice
+        val link = StreamLink(label(dev), socket.inputStream, socket.outputStream) { socket.close() }
+        synchronized(lifecycle) {
+            if (!running) { link.close(); return }
+            links.add(link)
+        }
         onStatus("BT: $why (${links.size} link${if (links.size == 1) "" else "s"})")
-        transportThread("ptt-bt-rx-${socket.remoteDevice.address}", { onStatus("BT rx stopped: ${it.message}") }) {
+        transportThread("ptt-bt-rx-${dev.address}", { onStatus("BT rx stopped: ${it.message}") }) {
             try {
                 link.readLoop { onPacket(it, this, link) }
             } catch (e: IOException) {
-                if (running) onStatus("BT: ${link.label} dropped")
+                if (running) onStatus("BT: ${link.label} dropped" + if (isDialed) ", redialling" else "")
             } finally {
                 links.remove(link)
                 link.close()
+                if (isDialed && running) peer?.let { redial(it) }
             }
         }
     }
@@ -151,16 +185,18 @@ class BluetoothTransport(
     }
 
     override fun stop() {
-        running = false
+        synchronized(lifecycle) {
+            running = false
+            for (link in links) link.close()
+            links.clear()
+        }
+        dialThread?.interrupt()                         // ends a backoff sleep early
+        try { dialing?.close() } catch (_: Exception) {} // aborts a connect() in flight
         try { server?.close() } catch (_: Exception) {}
         server = null
-        for (link in links) link.close()
-        links.clear()
     }
 
     companion object {
         val SERVICE_UUID: UUID = UUID.fromString("9d3f1a52-6c0e-4b7a-9f0c-7a2c1e4d5b61")
-        private const val CONNECT_ATTEMPTS = 5
-        private const val RETRY_MS = 1500L
     }
 }
