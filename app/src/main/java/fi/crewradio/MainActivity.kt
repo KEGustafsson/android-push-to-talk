@@ -255,6 +255,14 @@ class MainActivity : AppCompatActivity() {
         e.codec = if (prefs.opus) Packet.Codec.OPUS else Packet.Codec.PCM
         e.maxHops = prefs.hops
         e.displayName = prefs.name ?: e.defaultName
+        e.audioRoute = when (prefs.audioRoute) {
+            Prefs.ROUTE_SPEAKER -> fi.crewradio.audio.AudioRoute.Policy.SPEAKER
+            Prefs.ROUTE_EARPIECE -> fi.crewradio.audio.AudioRoute.Policy.EARPIECE
+            else -> fi.crewradio.audio.AudioRoute.Policy.AUTO
+        }
+        e.headsetAsCall = prefs.headsetAsCall
+        e.headsetVox = prefs.headsetVox
+        service?.cueTones = prefs.cueTones
         service?.refreshHardwareButtons()
     }
 

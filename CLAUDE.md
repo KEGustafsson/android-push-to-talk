@@ -63,9 +63,45 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   audio: `SeqTracker` (pure, wrap-aware, tested) admits each frame and reports the gap, the engine
   reserves that many slots in the mixer atomically with the admission, and the mixer fills them,
   and any queue that runs dry mid-talk, with the last frame fading over at most three slots.
+- Audio routing: `audio/AudioRoute` owns `AudioManager.mode` for the session and picks the
+  communication device: Bluetooth SCO headset, else wired/USB headset, else speakerphone
+  (`setCommunicationDevice` on API 31+, `startBluetoothSco`/`isSpeakerphoneOn` below). It
+  re-applies on every `AudioDeviceCallback` event and on a policy change; setting `audio_route`
+  (auto | speaker | earpiece) is pushed into the engine with the other live settings.
+- Bluetooth headsets: measured on a Jabra Evolve2 65 + S25. With SCO up and no call, a tap is
+  an AVRCP PLAY that reaches our `MediaSession` (good); the headset sometimes sends AT+CHUP
+  (hang-up) instead, and with no call to hang up Android drops the SCO link and does not
+  re-open it, so `AudioRoute` watches the communication device (API 31+) / SCO state
+  (below) and re-applies the route 700 ms later. While *any* Telecom call exists Android
+  refuses AVRCP media keys system-wide ("Only the system can dispatch media key event to the
+  global priority session"), so a self-managed call is NOT the default. It is the opt-in
+  setting `headset_call` (`PttEngine.headsetAsCall`), for headsets whose button only hangs
+  up: then `CallService` + `CallBridge` (`MANAGE_OWN_CALLS`) place a self-managed call while a
+  Bluetooth headset is the route, Telecom routes the audio (`AudioRoute.passive`), the hang-up
+  lands in `ChannelConnection.onDisconnect` as a talk toggle (`onAbort` really ends it), and a
+  phone call holds the channel (mic off, mixer muted) until `onUnhold`.
+- VOX with a headset (`headset_vox`, `PttEngine.headsetVox`): the Jabra sends nothing for its
+  button while SCO is up, and its mute arrives as HFP mic gain 0/9, which the phone only stores;
+  by level, muted and quiet are the same ~2 RMS (its own noise suppression) with ~20 RMS spikes
+  once a second, speech 200-1900. So the engine runs an always-on `monitor` capture while a
+  Bluetooth headset is the route and `audio/MicGate` (pure, tested) keys the mic after 2 frames
+  above 80 RMS and un-keys after 75 frames below 40 (300/120 on the phone's own mic:
+  `MicGate.tune`); a 5-frame pre-roll is sent on open. On the phone's mic the voice-call path
+  levels close talk (400-1150 peaks) and a talker a metre away (1500-1900) to the same range,
+  so on the phone the gate is armed only while the proximity sensor reads near (`atEar`); in
+  `AudioRoute.Policy.AUTO` that same flag also moves the route to the earpiece (`AudioRoute.atEar`),
+  loudspeaker when away, like a phone call. The phone-mic monitor runs on any route but
+  SPEAKER when no headset is in use; a manually keyed mic sends even away from the ear.
+  `startTalking` skips opening its own capture while the monitor runs and `sendFrame` is fed
+  from it. Off by default, except that the `earpiece` route always runs it (the phone is at
+  the ear, the screen out of reach). Cue tones (`cue_tones`) are off by default too.
 - Hardware talk button: `PttService` holds a `MediaSession` while on channel; headset/media
   buttons arrive as media button events, the volume keys through a remote `VolumeProvider`
-  (the only way to get them with the screen off). Both toggle the mic. Setting `hw_button`.
+  (the only way to get them with the screen off). Headset presses carry press and release, so
+  they need no debounce: a press toggles, a release after a 400 ms hold un-keys (push-to-talk).
+  The volume provider reports adjustments only and autorepeats, so a quiet gap of the platform
+  key-repeat timeout makes a hold one press. Every hardware key change plays `audio/Tones`
+  through the mixer's cue queue, on top of whatever is sounding. Setting `hw_button`.
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
   transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
   decremented in place), then decode and play unless half-duplex and transmitting. Opus
@@ -90,5 +126,4 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 
 ## Known gaps / roadmap
 1. Wi-Fi Direct transport for phones without Wi-Fi Aware.
-2. Audio routing: Bluetooth headset (SCO) instead of forcing speakerphone.
-3. A release pipeline: signing config, version bumps, an APK per merge.
+2. A release pipeline: signing config, version bumps, an APK per merge.

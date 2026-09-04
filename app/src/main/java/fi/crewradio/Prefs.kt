@@ -65,6 +65,14 @@ class Prefs(context: Context) {
     /** Which physical buttons key the mic while on channel: off, headset, volume or both. */
     val hwButton: String get() = sp.getString(KEY_HW_BUTTON, HW_BOTH) ?: HW_BOTH
     val keepScreenOn: Boolean get() = sp.getBoolean(KEY_KEEP_SCREEN_ON, true)
+    /** Where the voice goes: auto (headset, else loudspeaker), the loudspeaker, or the earpiece. */
+    val audioRoute: String get() = sp.getString(KEY_AUDIO_ROUTE, ROUTE_AUTO)?.takeIf { it == ROUTE_SPEAKER || it == ROUTE_EARPIECE } ?: ROUTE_AUTO
+    /** Register the session as a call while a Bluetooth headset is in use; for headsets whose button hangs up. */
+    val headsetAsCall: Boolean get() = sp.getBoolean(KEY_HEADSET_CALL, false)
+    /** With a Bluetooth headset, speech keys the mic (VOX). */
+    val headsetVox: Boolean get() = sp.getBoolean(KEY_HEADSET_VOX, false)
+    /** A tone in the ear when a talk key keys or un-keys the mic. */
+    val cueTones: Boolean get() = sp.getBoolean(KEY_CUE_TONES, false)
     val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
     val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
 
@@ -88,6 +96,13 @@ class Prefs(context: Context) {
         const val HW_VOLUME = "volume"
         const val HW_BOTH = "both"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        const val KEY_AUDIO_ROUTE = "audio_route"
+        const val KEY_HEADSET_CALL = "headset_call"
+        const val KEY_HEADSET_VOX = "headset_vox"
+        const val KEY_CUE_TONES = "cue_tones"
+        const val ROUTE_AUTO = "auto"
+        const val ROUTE_SPEAKER = "speaker"
+        const val ROUTE_EARPIECE = "earpiece"
         const val KEY_FULL_DUPLEX = "full_duplex"
         const val KEY_RELAY = "relay"
         const val KEY_OPUS = "opus"

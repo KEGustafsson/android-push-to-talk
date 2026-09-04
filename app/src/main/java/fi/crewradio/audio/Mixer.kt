@@ -29,11 +29,15 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
     }
 
     private val streams = ConcurrentHashMap<Int, Stream>()
+    private val cues = ArrayDeque<ByteArray>()              // tone frames, one per slot, on top of the streams
     @Volatile private var running = false
     private var worker: Thread? = null
 
     /** Slots filled by concealment since [start]; shown on the Status screen. */
     val concealedFrames = AtomicLong()
+
+    /** Output silence (queues keep draining) - the channel is on hold behind a phone call. */
+    @Volatile var muted = false
 
     private val prefillFrames = 2     // 40 ms before a new stream starts draining
     private val maxQueuedFrames = 10  // 200 ms cap; drop oldest beyond this
@@ -44,6 +48,7 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
         if (running) return
         running = true
         concealedFrames.set(0)
+        synchronized(cues) { cues.clear() }
         playback.start()
         worker = thread(name = "ptt-mixer") {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
@@ -53,6 +58,13 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
                 acc.fill(0)
                 var active = 0
                 val now = System.nanoTime()
+                val cue = synchronized(cues) { cues.pollFirst() }
+                if (cue != null) {
+                    active++
+                    for (i in 0 until AudioConfig.FRAME_SAMPLES) {
+                        acc[i] += (cue[2 * i + 1].toInt() shl 8) or (cue[2 * i].toInt() and 0xFF)
+                    }
+                }
                 for ((id, st) in streams) {
                     val frame = synchronized(st) { nextFrame(st, now) }
                     if (frame != null) {
@@ -68,7 +80,7 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
                         streams.remove(id)
                     }
                 }
-                if (active == 0) {
+                if (active == 0 || muted) {
                     out.fill(0)
                 } else {
                     for (i in 0 until AudioConfig.FRAME_SAMPLES) {
@@ -119,11 +131,20 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
         }
     }
 
+    /** Plays [frames] (see [Tones]) from the next slot on, over whatever else is sounding. */
+    fun cue(frames: List<ByteArray>) {
+        synchronized(cues) {
+            if (!running) return                                  // checked under the lock: stop() clears under it too
+            for (f in frames) if (f.size == AudioConfig.FRAME_BYTES) cues.addLast(f)
+        }
+    }
+
     fun stop() {
         running = false
         worker?.join(500)
         worker = null
         streams.clear()
+        synchronized(cues) { cues.clear() }
         playback.stop()
     }
 

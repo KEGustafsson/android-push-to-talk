@@ -1,13 +1,14 @@
 package fi.crewradio
 
 import android.content.Context
-import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import fi.crewradio.audio.AudioCapture
 import fi.crewradio.audio.AudioConfig
+import fi.crewradio.audio.AudioRoute
 import fi.crewradio.audio.Conceal
+import fi.crewradio.audio.MicGate
 import fi.crewradio.audio.Mixer
 import fi.crewradio.audio.OpusDecoder
 import fi.crewradio.audio.OpusEncoder
@@ -76,7 +77,7 @@ class Stats(
  * fires only when the list actually changes.
  */
 class PttEngine(
-    context: Context,
+    private val context: Context,
     private val onStatus: (String) -> Unit,
     private val onRoster: (List<Peer>) -> Unit = {}
 ) {
@@ -114,7 +115,198 @@ class PttEngine(
     /** Names of the transports running right now. */
     val activeTransports: List<String> get() = transports.map { it.name }
 
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val route = AudioRoute(context, onStatus)
+
+    /**
+     * Voice-operated keying (setting `headset_vox`, and always on the earpiece route): the mic
+     * is captured all the time and speech keys it, 1.5 s of quiet un-keys it ([MicGate]); the
+     * last [PREROLL] frames before the gate opened go out first, so the first syllable is not
+     * clipped. A muted headset is quiet, so mute means off air.
+     */
+    @Volatile var headsetVox = false
+        set(value) { if (field != value) { field = value; syncMonitor() } }
+
+    private var monitor: AudioCapture? = null
+    private val gate = MicGate()
+    private val preroll = ArrayDeque<ByteArray>()
+    @Volatile private var gateTalking = false      // the gate keyed the mic, so the gate un-keys it
+
+    private val monitorLock = Any()
+
+    /**
+     * On the phone's own mic the level cannot tell your voice from a shipmate's a metre away
+     * (the voice-call path levels them out), so the earpiece route arms the voice gate only
+     * while the proximity sensor says the phone is at your ear, as a phone call would.
+     */
+    @Volatile private var atEar = false
+    @Volatile private var phoneMic = false
+    private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
+    private val proximity = object : android.hardware.SensorEventListener {
+        override fun onSensorChanged(e: android.hardware.SensorEvent) {
+            val near = e.values[0] < (e.sensor.maximumRange.coerceAtMost(5f))
+            if (near != atEar) {
+                atEar = near
+                route.atEar = near                                // AUTO: earpiece at the ear, loudspeaker away
+                onStatus(if (near) "At the ear: voice keys the mic" else "Away from the ear")
+            }
+        }
+        override fun onAccuracyChanged(s: android.hardware.Sensor?, a: Int) = Unit
+    }
+    /** Told when the engine starts or stops watching the ear; the service darkens the screen at the ear meanwhile. */
+    @Volatile var onEarWatch: ((Boolean) -> Unit)? = null
+
+    private fun watchProximity(on: Boolean) {
+        val s = sensors.getDefaultSensor(android.hardware.Sensor.TYPE_PROXIMITY)
+        if (s == null) { atEar = true; return }                       // no sensor: trust the level alone
+        if (on) sensors.registerListener(proximity, s, android.hardware.SensorManager.SENSOR_DELAY_NORMAL)
+        else { sensors.unregisterListener(proximity); atEar = false; route.atEar = false }
+        onEarWatch?.invoke(on)
+    }
+
+    /** True while voice keying is armed: always with a headset, at the ear on the earpiece route. */
+    val voiceArmed: Boolean get() = monitor != null && (!phoneMic || atEar)
+    private val micPeak = java.util.concurrent.atomic.AtomicInteger(-1)
+
+    /** Loudest frame (RMS, 16-bit scale) the voice gate has seen since last asked, -1 when the gate is not running; for the Status screen. */
+    val micPeakNow: Int get() = if (monitor == null) -1 else micPeak.getAndSet(0)
+    /** The level the voice gate opens at, for the Status screen. */
+    val gateOpenRms: Int get() = gate.openRms.toInt()
+
+    /**
+     * Starts or stops the always-on headset capture as the setting, the route and the session
+     * dictate. The capture's frames and this method serialise on [monitorLock], and a frame from
+     * a capture that is no longer [monitor] is dropped, so a late frame after teardown cannot key
+     * the mic; the capture itself is stopped outside the lock, since its worker may be waiting for it.
+     */
+    private fun syncMonitor() {
+        var toStop: AudioCapture? = null
+        synchronized(monitorLock) {
+            // On the phone itself the ear arms voice keying (earpiece, or auto at the ear); with a
+            // Bluetooth headset it is the setting. A wired headset has a button that works, so neither.
+            val phone = !route.headset && route.policy != AudioRoute.Policy.SPEAKER
+            val want = isConnected && !held && (phone || (headsetVox && route.bluetoothHeadset))
+            if (want == (monitor != null)) return
+            if (!want) {
+                toStop = monitor
+                monitor = null
+                if (gateTalking) { gateTalking = false; stopTalking() }
+                gate.reset()
+                preroll.clear()
+                if (phoneMic) watchProximity(false)
+            } else {
+                gate.reset()
+                phoneMic = !route.bluetoothHeadset
+                gate.tune(phoneMic)
+                if (phoneMic) watchProximity(true)
+                preroll.clear()
+                lateinit var m: AudioCapture
+                m = AudioCapture { pcm -> synchronized(monitorLock) { if (monitor === m) voiceFrame(pcm) } }
+                monitor = m                                   // published first: the worker may call back before start() returns
+                try {
+                    m.start()
+                    onStatus("Voice keys the mic")
+                } catch (e: Exception) {
+                    monitor = null
+                    toStop = m
+                    onStatus("Mic error: ${e.message}")
+                }
+            }
+        }
+        toStop?.stop()
+    }
+
+    /** One frame from the headset capture: runs the voice gate, then sends or keeps it for the pre-roll. Holds [monitorLock]. */
+    private fun voiceFrame(pcm: ByteArray) {
+        val rms = MicGate.rms(pcm)
+        micPeak.accumulateAndGet(rms.toInt()) { a, b -> maxOf(a, b) }
+        if (phoneMic && !atEar) {                                  // away from the ear: the gate is disarmed, the button still works
+            if (gateTalking) { gateTalking = false; stopTalking() }
+            gate.reset()
+            if (talking) sendFrame(pcm)
+            else { preroll.addLast(pcm); while (preroll.size > PREROLL) preroll.removeFirst() }
+            return
+        }
+        when (gate.feed(rms)) {
+            MicGate.Change.OPEN -> if (!talking) {
+                gateTalking = true
+                startTalking()
+                if (talking) for (f in preroll) sendFrame(f)      // the syllable that opened the gate
+                else gateTalking = false                          // the mic did not open; the gate owns nothing
+            }
+            MicGate.Change.CLOSE -> if (gateTalking) { gateTalking = false; stopTalking() }
+            null -> Unit
+        }
+        if (talking) sendFrame(pcm)
+        else { preroll.addLast(pcm); while (preroll.size > PREROLL) preroll.removeFirst() }
+    }
+
+    /** A hardware talk key that reaches the engine through Telecom (a Bluetooth headset's button). Set by the service. */
+    @Volatile var onTalkKey: (() -> Unit)? = null
+    @Volatile private var held = false
+
+    /**
+     * Telecom's view of the session, only while a Bluetooth headset is the route: [AudioRoute]
+     * asks for the call when such a headset appears and ends it when it goes; while the call
+     * lasts Telecom routes the audio and the headset button arrives as [CallBridge.Listener.onHeadsetButton].
+     */
+    private val callListener = object : CallBridge.Listener {
+        override fun onCallActive() { route.passive = true }
+        override fun onCallEnded(reason: String?) {
+            route.passive = false
+            if (reason != null) onStatus(reason)
+            if (isConnected) route.reapply()
+        }
+        override fun onHeadsetButton() { onTalkKey?.invoke() }
+        override fun onHold(held: Boolean) {
+            this@PttEngine.held = held
+            if (held) stopTalking()
+            mixer.muted = held
+            onStatus(if (held) "On hold: phone call" else "Back on channel")
+            syncMonitor()
+        }
+        override fun onAudioRoute(label: String) {
+            if (label != route.current) { route.current = label; onStatus("Audio: $label") }
+        }
+    }
+
+    /**
+     * Register the session as a call while a Bluetooth headset is in use (setting `headset_call`).
+     * Off by default: headsets differ in what their button sends, and a call makes Android drop
+     * the media keys some of them send. On, for headsets that send a hang-up instead.
+     */
+    @Volatile var headsetAsCall = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (isConnected && route.bluetoothHeadset) syncCall(true)
+        }
+
+    init {
+        route.onBluetoothHeadset = { present -> syncCall(present); syncMonitor() }
+    }
+
+    private fun syncCall(bluetoothPresent: Boolean) {
+        if (bluetoothPresent && headsetAsCall && isConnected) {
+            if (!CallBridge.start(context)) {
+                route.passive = false      // Telecom would not take it (a phone call, or no telecom); route ourselves
+                route.reapply()
+            }
+        } else CallBridge.stop()
+    }
+    /** Headset when connected (default) or always the speaker; applies immediately. */
+    var audioRoute: AudioRoute.Policy
+        get() = route.policy
+        set(value) {
+            route.policy = value
+            CallBridge.forcedRoute = when (value) {
+                AudioRoute.Policy.SPEAKER -> android.telecom.CallAudioState.ROUTE_SPEAKER
+                AudioRoute.Policy.EARPIECE -> android.telecom.CallAudioState.ROUTE_EARPIECE
+                AudioRoute.Policy.AUTO -> null
+            }
+            syncMonitor()
+        }
+    /** Where the voice is going right now, for the Status screen. */
+    val audioRouteNow: String get() = route.current
     private val mixer = Mixer()
     private val transports = CopyOnWriteArrayList<Transport>()
     private var capture: AudioCapture? = null
@@ -176,8 +368,8 @@ class PttEngine(
     fun connect(list: List<Transport>) {
         disconnect()
         counters = Counters()
-        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-        audioManager.isSpeakerphoneOn = true
+        CallBridge.listener = callListener
+        route.start()
         mixer.start()
         for (t in list) {
             transports.add(t)
@@ -193,10 +385,13 @@ class PttEngine(
         heartbeat = Executors.newSingleThreadScheduledExecutor { Thread(it, "ptt-heartbeat") }.also {
             it.scheduleAtFixedRate({ tick() }, 0, TICK_MS, TimeUnit.MILLISECONDS)
         }
+        syncMonitor()
     }
 
     /** Stops everything and releases codecs; safe to call when already idle. */
     fun disconnect() {
+        val m = synchronized(monitorLock) { monitor.also { monitor = null; gateTalking = false; if (phoneMic) watchProximity(false) } }
+        m?.stop()
         stopTalking()
         heartbeat?.shutdownNow()
         heartbeat = null
@@ -209,14 +404,18 @@ class PttEngine(
         nodes.clear()
         seqTracker.clear()
         publishRoster()
-        audioManager.mode = AudioManager.MODE_NORMAL
+        route.stop()
+        CallBridge.stop()
+        CallBridge.listener = null
+        mixer.muted = false
+        held = false
     }
 
     fun stats(): Stats = counters.snapshot(mixer.concealedFrames.get())
 
     /** Keys the mic: opens the encoder (if Opus) and the capture; on failure everything is released again. */
     fun startTalking() {
-        if (talking || transports.isEmpty()) return
+        if (talking || transports.isEmpty() || held) return
         talking = true
         encoder = if (codec == Packet.Codec.OPUS) {
             try {
@@ -226,21 +425,11 @@ class PttEngine(
                 null
             }
         } else null
-        val cap = AudioCapture { pcm ->
-            val e = encoder
-            if (e == null) {
-                broadcast(Packet.Codec.PCM, pcm)
-            } else {
-                try {
-                    e.encode(pcm)
-                } catch (ex: Exception) {
-                    encoder = null
-                    e.release()
-                    onStatus("Opus failed (${ex.message}), sending PCM")
-                    broadcast(Packet.Codec.PCM, pcm)
-                }
-            }
+        if (monitor != null) {             // the always-on headset capture feeds sendFrame while talking
+            onStatus(if (mode == Mode.FULL_DUPLEX) "Mic on" else "Transmitting")
+            return
         }
+        val cap = AudioCapture { pcm -> sendFrame(pcm) }
         try {
             cap.start()
         } catch (e: Exception) {
@@ -255,10 +444,28 @@ class PttEngine(
         onStatus(if (mode == Mode.FULL_DUPLEX) "Mic on" else "Transmitting")
     }
 
+    /** One captured frame out: through the Opus encoder when there is one, else raw. */
+    private fun sendFrame(pcm: ByteArray) {
+        val e = encoder
+        if (e == null) {
+            broadcast(Packet.Codec.PCM, pcm)
+        } else {
+            try {
+                e.encode(pcm)
+            } catch (ex: Exception) {
+                encoder = null
+                e.release()
+                onStatus("Opus failed (${ex.message}), sending PCM")
+                broadcast(Packet.Codec.PCM, pcm)
+            }
+        }
+    }
+
     /** Un-keys the mic and releases the capture and encoder. */
     fun stopTalking() {
         if (!talking) return
         talking = false
+        gateTalking = false
         capture?.stop()
         capture = null
         encoder?.release()
@@ -268,6 +475,9 @@ class PttEngine(
 
     /** Full-duplex mic toggle. */
     fun toggleTalking() = if (talking) stopTalking() else startTalking()
+
+    /** Plays a short cue (see [fi.crewradio.audio.Tones]) in the ear, or the speaker; nothing when not on channel. */
+    fun cue(frames: List<ByteArray>) = mixer.cue(frames)
 
     /** Stamps and sends one of our own packets on every transport. */
     private fun broadcast(codec: Packet.Codec, payload: ByteArray) {
@@ -468,6 +678,8 @@ class PttEngine(
     }
 
     private companion object {
+        /** Frames kept from before the voice gate opened and sent first: 100 ms. */
+        const val PREROLL = 5
         const val DECODER_IDLE_NS = 30_000_000_000L
         const val EVICT_IDLE_NS = 2_000_000_000L
         const val MAX_DECODERS = 8            // a crew, not a crowd; each one is a MediaCodec instance
