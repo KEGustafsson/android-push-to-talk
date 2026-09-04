@@ -53,6 +53,9 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   audio packet refreshes the sender's `Node` (name, transports, via, hops, talking). Silent for
   4 s = dropped. `onRoster` fires only when the rendered list changes; the service mirrors the
   head count into the notification title. Display name = Android device name, else `Build.MODEL`.
+- The main screen shows only what matters while talking (head count, one status line, who is
+  talking); `StatusActivity` (menu > Status) polls `engine.rosterNow`, `engine.stats()` and
+  `service.statusLog` once a second for the detail. Keep diagnostics there, not on the main screen.
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
   transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
   decremented in place), then decode and play unless half-duplex and transmitting. Opus

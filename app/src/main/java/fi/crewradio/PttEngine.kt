@@ -17,6 +17,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.random.Random
 
 /**
@@ -32,10 +33,19 @@ class Peer(
     val transports: Int,
     val via: String,
     val hops: Int,
-    val talking: Boolean
+    val talking: Boolean,
+    /** Milliseconds since we last heard anything from it, at the time the list was built. */
+    val seenAgoMs: Long
 ) {
     val label: String get() = name ?: id.toUInt().toString(16)
 }
+
+/** Packet counters since Connect; for the Status screen. */
+class Stats(
+    val rxPackets: Long, val rxBytes: Long,
+    val txPackets: Long, val txBytes: Long,
+    val relayed: Long, val duplicates: Long, val hellos: Long
+)
 
 /**
  * Glue between mic, codec, transports, relay, roster and mixer.
@@ -96,6 +106,10 @@ class PttEngine(
     val isConnected: Boolean get() = transports.isNotEmpty()
     /** The roster as last published; the UI reads this when it (re)binds. */
     val roster: List<Peer> get() = lastRoster
+    /** A fresh roster with current ages, for a screen that polls. */
+    val rosterNow: List<Peer> get() = buildRoster()
+    /** Names of the transports running right now. */
+    val activeTransports: List<String> get() = transports.map { it.name }
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val mixer = Mixer()
@@ -106,6 +120,13 @@ class PttEngine(
     private val undecodable = ConcurrentHashMap.newKeySet<Int>()   // senders whose decoder failed; reported once
     private val packetCount = AtomicInteger()
     private val seq = AtomicInteger()                                // shared by the audio thread and the heartbeat
+    private val rxPackets = AtomicLong()
+    private val rxBytes = AtomicLong()
+    private val txPackets = AtomicLong()
+    private val txBytes = AtomicLong()
+    private val relayed = AtomicLong()
+    private val duplicates = AtomicLong()
+    private val hellos = AtomicLong()
     @Volatile private var talking = false
 
     private val nodes = ConcurrentHashMap<Int, Node>()
@@ -169,8 +190,11 @@ class PttEngine(
         synchronized(seen) { seen.clear() }
         nodes.clear()
         publishRoster()
+        for (c in listOf(rxPackets, rxBytes, txPackets, txBytes, relayed, duplicates, hellos)) c.set(0)
         audioManager.mode = AudioManager.MODE_NORMAL
     }
+
+    fun stats() = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get())
 
     /** Keys the mic: opens the encoder (if Opus) and the capture; on failure everything is released again. */
     fun startTalking() {
@@ -232,6 +256,8 @@ class PttEngine(
         val s = seq.getAndIncrement()
         markSeen(senderId, s)
         val packet = Packet.encode(senderId, s, codec, maxHops, payload)
+        txPackets.incrementAndGet()
+        txBytes.addAndGet(packet.size.toLong())
         for (t in transports) t.send(packet)
     }
 
@@ -239,12 +265,15 @@ class PttEngine(
     private fun onPacket(p: ByteArray, from: Transport, link: Any?) {
         val h = Packet.parse(p) ?: return
         if (h.senderId == senderId) return
-        if (!markSeen(h.senderId, h.seq)) return          // duplicate via another path
+        if (!markSeen(h.senderId, h.seq)) { duplicates.incrementAndGet(); return }   // duplicate via another path
+        rxPackets.incrementAndGet()
+        rxBytes.addAndGet(p.size.toLong())
 
         // A peer's ttl is capped at our own budget, so nobody can stamp 255 and ride further than we allow.
         val ttl = minOf(h.ttl, maxHops)
         if (relay && ttl > 1) {
             Packet.setTtl(p, ttl - 1)
+            relayed.incrementAndGet()
             for (t in transports) {
                 if (t === from) { if (t.relayWithin) t.send(p, except = link) }
                 else t.send(p)
@@ -252,6 +281,7 @@ class PttEngine(
         }
 
         if (h.codec == Packet.Codec.HELLO) {
+            hellos.incrementAndGet()
             Hello.decode(p, Packet.HEADER, p.size - Packet.HEADER)?.let { heardHello(h.senderId, it, from, h.ttl) }
             return
         }
@@ -323,12 +353,17 @@ class PttEngine(
     private fun nodeFor(id: Int): Node? =
         nodes[id] ?: if (nodes.size >= MAX_NODES) null else nodes.computeIfAbsent(id) { Node() }
 
-    /** Rebuilds the list and hands it out only if it differs from the last one published. */
+    private fun buildRoster(): List<Peer> {
+        val now = SystemClock.elapsedRealtime()
+        return nodes.entries
+            .map { (id, n) -> Peer(id, n.name, n.transports, n.via, n.hops, n.talking, now - n.lastSeen) }
+            .sortedBy { it.label.lowercase() }
+    }
+
+    /** Rebuilds the list and hands it out only if it differs from the last one published (ages do not count). */
     @Synchronized
     private fun publishRoster() {
-        val list = nodes.entries
-            .map { (id, n) -> Peer(id, n.name, n.transports, n.via, n.hops, n.talking) }
-            .sortedBy { it.label.lowercase() }
+        val list = buildRoster()
         val key = list.joinToString("|") { "${it.id}/${it.name}/${it.transports}/${it.via}/${it.hops}/${it.talking}" }
         if (key == lastRosterKey) return
         lastRosterKey = key

@@ -48,6 +48,11 @@ class PttService : Service() {
     /** Set by the bound activity. Called on whichever thread reported the status. */
     @Volatile var statusListener: ((String) -> Unit)? = null
 
+    private val log = ArrayDeque<String>()
+
+    /** The last [LOG_LINES] status lines with a time stamp, oldest first; for the Status screen. */
+    val statusLog: List<String> get() = synchronized(log) { log.toList() }
+
     /** Last roster the engine published; the activity shows it when it (re)binds. */
     @Volatile var lastRoster: List<Peer> = emptyList()
         private set
@@ -111,6 +116,10 @@ class PttService : Service() {
     /** Engine status sink: remembers the line, forwards it to the UI and mirrors it in the notification. */
     private fun onStatus(msg: String) {
         lastStatus = msg
+        synchronized(log) {
+            log.addLast(java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.ROOT).format(java.util.Date()) + "  " + msg)
+            while (log.size > LOG_LINES) log.removeFirst()
+        }
         statusListener?.invoke(msg)
         if (engine.isConnected) showForeground(msg)
     }
@@ -224,5 +233,6 @@ class PttService : Service() {
         const val ACTION_DISCONNECT = "fi.crewradio.action.DISCONNECT"
         private const val CHANNEL_ID = "ptt"
         private const val NOTIFICATION_ID = 1
+        private const val LOG_LINES = 40
     }
 }

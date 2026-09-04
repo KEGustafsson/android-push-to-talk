@@ -18,7 +18,6 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.view.HapticFeedbackConstants
-import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -56,9 +55,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: Prefs
     private lateinit var crewName: TextView
     private lateinit var status: TextView
-    private lateinit var aboard: TextView
+    private lateinit var talkingLine: TextView
     private lateinit var peerCount: TextView
-    private lateinit var crewList: LinearLayout
     private lateinit var pttButton: MaterialButton
     private lateinit var channelRow: View
     private lateinit var channelState: TextView
@@ -111,9 +109,8 @@ class MainActivity : AppCompatActivity() {
         prefs = Prefs(this)
         crewName = findViewById(R.id.crewName)
         status = findViewById(R.id.status)
-        aboard = findViewById(R.id.aboard)
+        talkingLine = findViewById(R.id.talkingLine)
         peerCount = findViewById(R.id.peerCount)
-        crewList = findViewById(R.id.crewList)
         pttButton = findViewById(R.id.pttButton)
         channelRow = findViewById(R.id.channelRow)
         channelState = findViewById(R.id.channelState)
@@ -141,7 +138,10 @@ class MainActivity : AppCompatActivity() {
             PopupMenu(this, v).apply {
                 menuInflater.inflate(R.menu.main, menu)
                 setOnMenuItemClickListener { item ->
-                    if (item.itemId == R.id.action_settings) startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+                    when (item.itemId) {
+                        R.id.action_status -> startActivity(Intent(this@MainActivity, StatusActivity::class.java))
+                        R.id.action_settings -> startActivity(Intent(this@MainActivity, SettingsActivity::class.java))
+                    }
                     true
                 }
             }.show()
@@ -290,43 +290,15 @@ class MainActivity : AppCompatActivity() {
         pttButton.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, if (live) R.color.error else R.color.outline))
     }
 
-    /** The crew card: one row per peer (dot, name, how we hear them), plus the head count in two places. */
+    /** The header count, and a green line naming whoever is talking; the full list lives on the Status screen. */
     private fun renderRoster(peers: List<Peer>) {
         peerCount.text = peers.size.toString()
-        aboard.text = getString(R.string.aboard, peers.size)
-        crewList.removeAllViews()
-        if (peers.isEmpty()) {
-            if (engine?.isConnected == true) {
-                val empty = TextView(this).apply {
-                    text = getString(R.string.roster_alone)
-                    setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_dim))
-                    textSize = 15f
-                }
-                crewList.addView(empty)
-            }
-            return
-        }
-        val inflater = LayoutInflater.from(this)
-        val green = ContextCompat.getColor(this, R.color.talking)
-        val dim = ContextCompat.getColor(this, R.color.text_dim)
-        for (p in peers) {
-            val row = inflater.inflate(R.layout.row_peer, crewList, false)
-            row.findViewById<TextView>(R.id.name).text = p.label
-            val meta = row.findViewById<TextView>(R.id.meta)
-            val dot = row.findViewById<View>(R.id.dot)
-            if (p.talking) {
-                meta.text = getString(R.string.meta_talking)
-                meta.setTextColor(green)
-                dot.backgroundTintList = ColorStateList.valueOf(green)
-            } else {
-                meta.text = buildString {
-                    append(p.via.uppercase())
-                    if (p.hops > 0) append(" · ${p.hops} HOP" + if (p.hops == 1) "" else "S")
-                }
-                meta.setTextColor(dim)
-                dot.backgroundTintList = null
-            }
-            crewList.addView(row)
+        val talking = peers.filter { it.talking }
+        if (talking.isEmpty()) {
+            talkingLine.visibility = View.GONE
+        } else {
+            talkingLine.text = "\u25CF " + getString(R.string.talking_line, talking.joinToString(", ") { it.label.uppercase() })
+            talkingLine.visibility = View.VISIBLE
         }
     }
 

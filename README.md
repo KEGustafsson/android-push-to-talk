@@ -72,7 +72,13 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    port, the Wi‑Fi Aware passphrase (phones only link when it matches, so it doubles as a
    crew name) and the hop limit. Name and hop limit apply at once; the network ones on the
    next Connect. The main screen keeps only what changes per trip - transports and the
-   Bluetooth peer - and remembers them, so a normal day is open the app, press Connect.
+   Bluetooth peer - and remembers them, so a normal day is open the app, flip the channel
+   switch on.
+13. **Status** (menu): everything the main screen leaves out - each crew member with id,
+   transport, hops, what they are on and when last heard; this phone's addresses (Wi-Fi,
+   the Aware link), the multicast group and port, Bluetooth name and hop limit in use;
+   packet counters (received, sent, relayed, duplicates dropped, hellos); and the last 40
+   status lines with time stamps. Refreshes every second while open.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
@@ -90,6 +96,7 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `Hello` — roster heartbeat payload: name, transport flags, hop budget
 - `PttEngine` — modes, codec, multi‑transport, relay with (senderId, seq) seen‑cache and ttl, roster + heartbeat
 - `Prefs`, `SettingsActivity` — validated settings (`SettingsRules`) and remembered main-screen choices
+- `StatusActivity` — crew detail, addresses, counters and the status log, one tap from the main screen
 - `PttService` — foreground service owning the engine, wake/Wi‑Fi locks, notification
 - `MainActivity` — UI, permissions; binds to the service while visible
 

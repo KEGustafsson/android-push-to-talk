@@ -194,24 +194,22 @@
                 android:letterSpacing="0.08"
                 android:textSize="12sp"
                 android:textColor="@color/text_teal_dim"
-                android:maxLines="2"
+                android:maxLines="1"
                 android:ellipsize="end" />
-            <TextView
-                android:id="@+id/aboard"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:fontFamily="monospace"
-                android:letterSpacing="0.16"
-                android:textSize="12sp"
-                android:textColor="@color/text_teal_dim" />
         </LinearLayout>
-        <LinearLayout
-            android:id="@+id/crewList"
+        <TextView
+            android:id="@+id/talkingLine"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="vertical" />
+            android:layout_marginTop="6dp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.1"
+            android:textStyle="bold"
+            android:textSize="15sp"
+            android:textColor="@color/talking"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- The talk disc: as large a circle as the remaining space allows (sized in code to min(w, h)). -->
