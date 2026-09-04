@@ -33,8 +33,8 @@ class SettingsActivity : AppCompatActivity() {
     class Fragment : PreferenceFragmentCompat() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.preferences, rootKey)
-            rule(Prefs.KEY_CREW_NAME, "Up to 24 characters") { SettingsRules.validCrewName(it) }
-            rule(Prefs.KEY_NAME, "Up to 32 bytes; leave empty to use the device name") { SettingsRules.validName(it) }
+            rule(Prefs.KEY_CREW_NAME, "Channel name: up to 24 characters") { SettingsRules.validCrewName(it) }
+            rule(Prefs.KEY_NAME, "My name: up to 32 bytes; leave empty to use the name of this phone") { SettingsRules.validName(it) }
             rule(Prefs.KEY_GROUP, "Must be an IPv4 multicast address, 224.0.0.0 to 239.255.255.255") { SettingsRules.validGroup(it) }
             rule(Prefs.KEY_PORT, "Port must be 1024 to 65535", numeric = true) { SettingsRules.validPort(it) }
             rule(Prefs.KEY_PASSPHRASE, "8 to 63 plain ASCII characters, the same on every phone") { SettingsRules.validPassphrase(it) }

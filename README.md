@@ -65,9 +65,10 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    The list under the status line shows who is online, how you hear them (which transport,
    how many hops), what they are connected to, and who is talking; the notification title
    shows the head count. A phone silent for 4 s drops off. Rename a phone in
-   Settings > About phone > Device name, or give the app its own name in its Settings.
+   Settings > About phone > Device name, or set My name in the app settings.
    Older builds simply ignore hellos and are listed by id from their audio.
-12. **Settings** (button top right): full duplex, relay and Opus; the name shown to the crew, the multicast group and
+12. **Settings** (menu, top right): My name (what the others see), Channel name (the big word at the
+   top, the boat or the crew); full duplex, relay and Opus; the multicast group and
    port, the Wi‑Fi Aware passphrase (phones only link when it matches, so it doubles as a
    crew name) and the hop limit. Name and hop limit apply at once; the network ones on the
    next Connect. The main screen keeps only what changes per trip - transports and the
