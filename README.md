@@ -3,8 +3,9 @@
 Kotlin, minSdk 29. No third-party audio libs: raw 16 kHz mono PCM16 in 20 ms frames.
 
 ## Build
-Open the folder in Android Studio (Hedgehog or newer), let it generate the Gradle
-wrapper, build, install on two or more phones.
+Open the folder in Android Studio (Hedgehog or newer) and build, or run
+`./gradlew assembleDebug` with an Android SDK (platform 34) installed. Install on
+two or more phones.
 
 ## Use
 1. Tick one or more transports. A phone running several at once bridges

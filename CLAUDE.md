@@ -7,8 +7,8 @@ flooding relay so multiple transports and multi-hop topologies work.
 ## Stack
 - Kotlin, Android Gradle Plugin 8.5, Kotlin 2.0, minSdk 29, targetSdk 34, JDK 17.
 - No third-party audio libs. Raw 16 kHz mono PCM16, 20 ms frames (see `audio/AudioConfig`).
-- Build: `./gradlew assembleDebug` (generate the wrapper jar first with
-  `gradle wrapper` or by opening in Android Studio). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- Build: `./gradlew assembleDebug` (wrapper is committed; needs an Android SDK with
+  platform 34 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
 - No unit tests yet. Real testing needs two or more physical phones; the emulator
   has no Bluetooth or Wi-Fi Aware.
 
