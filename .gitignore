@@ -15,3 +15,8 @@ captures/
 *.class
 .DS_Store
 .kotlin/
+
+# Signing keys never enter the repository (see README, Releases)
+*.keystore
+*.jks
+keystore.properties

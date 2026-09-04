@@ -114,6 +114,7 @@ class StatusActivity : AppCompatActivity() {
                 else -> "Headset or speaker"
             }))
             rows.addView(kv("HOP LIMIT", prefs.hops.toString()))
+            rows.addView(kv("VERSION", "${BuildConfig.VERSION_NAME} · ${BuildConfig.GIT_SHA}"))
             val peak = e?.micPeakNow ?: -1
             if (peak >= 0) rows.addView(kv("VOICE GATE", (if (e?.voiceArmed == true) "armed" else "away from ear") + " · peak $peak · opens at ${e?.gateOpenRms}"))
         }

@@ -3,10 +3,26 @@
 Kotlin, minSdk 29. No third-party audio libs: 16 kHz mono in 20 ms frames, sent as
 Opus (via the platform codec) or raw PCM16.
 
+## Install
+Every merge to `main` builds a signed APK and publishes it on the
+[Releases](../../releases) page as `CrewRadio-<version>.apk`. On each phone open that page,
+download the newest APK and allow the install (Android asks once to allow installs from the
+browser). Every phone on the crew must run the same version; the Status screen (menu) shows
+the version and the commit it was built from.
+
+The version is `1.<number of commits on main>`, set by the build from git, so nobody bumps
+numbers by hand. Pull requests get the same APK as a workflow artifact, unsigned for release.
+
 ## Build
 Open the folder in Android Studio (Koala or newer, for Android Gradle Plugin 8.5) and build, or run
 `./gradlew assembleDebug` with an Android SDK (platform 34) installed. Install on
 two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
+
+A local build is signed with the debug key; a Release from GitHub with the crew's release key.
+Android will not upgrade one with the other in place: uninstall first when switching between
+them (the app keeps no data worth losing). To sign locally like the pipeline, put the keystore
+outside the repository and export `CREWRADIO_KEYSTORE`, `CREWRADIO_KEYSTORE_PASSWORD`,
+`CREWRADIO_KEY_ALIAS` and `CREWRADIO_KEY_PASSWORD` before `./gradlew assembleRelease`.
 
 ## Use
 1. Tick one or more transports. A phone running several at once bridges

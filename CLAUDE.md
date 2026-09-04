@@ -12,6 +12,13 @@ flooding relay so multiple transports and multi-hop topologies work.
   or raw PCM16. The AOSP Opus decoder always outputs 48 kHz, hence `audio/Decimator`.
 - Build: `./gradlew assembleDebug` (wrapper is committed; needs an Android SDK with
   platform 34 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- Versions come from git in `app/build.gradle.kts`: `versionCode` = commit count, `versionName` =
+  `1.<count>`, `BuildConfig.GIT_SHA` on the Status screen. Never edit version numbers by hand.
+- Release pipeline: `.github/workflows/build.yml` runs the unit tests and `assembleRelease` on
+  every push/PR (APK as an artifact) and, on a push to `main`, publishes a GitHub Release
+  `v<version>` with `CrewRadio-<version>.apk`. Signing uses the `CREWRADIO_*` secrets (keystore
+  base64 + passwords); without them the release build falls back to the debug key. The keystore
+  lives outside the repo (`*.keystore` is ignored); the maintainer keeps it in `~/.crewradio/`.
 - Unit tests (JUnit 4, pure Kotlin only, no Android runtime): `./gradlew testDebugUnitTest`.
   Real testing needs two or more physical phones; the emulator has no Bluetooth or Wi-Fi Aware,
   and MediaCodec behaviour can only be checked on a device.
@@ -126,4 +133,3 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 
 ## Known gaps / roadmap
 1. Wi-Fi Direct transport for phones without Wi-Fi Aware.
-2. A release pipeline: signing config, version bumps, an APK per merge.
