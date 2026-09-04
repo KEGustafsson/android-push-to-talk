@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Transports (pick one or more — several = this phone bridges them)" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <CheckBox android:id="@+id/checkLan" android:text="WLAN" android:checked="true"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+        <CheckBox android:id="@+id/checkBt" android:text="Bluetooth"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+        <CheckBox android:id="@+id/checkAware" android:text="Wi‑Fi Aware"
+            android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <Spinner
+        android:id="@+id/btDevices"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/duplexSwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Full duplex (talk and listen at the same time)" />
+
+    <com.google.android.material.switchmaterial.SwitchMaterial
+        android:id="@+id/relaySwitch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Relay (forward others' audio, mesh mode)" />
+
+    <Button
+        android:id="@+id/connectButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Connect" />
+
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="8dp"
+        android:text="Idle" />
+
+    <Button
+        android:id="@+id/pttButton"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="16dp"
+        android:textSize="32sp"
+        android:text="HOLD TO TALK" />
+</LinearLayout>
