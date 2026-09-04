@@ -27,7 +27,8 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   status line and has a Disconnect action. The activity never disconnects on its own
   lifecycle, only on the button or the notification action.
 - `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.
-  Codec 0 = PCM16LE frame, 1 = Opus packet. Receivers decode per packet, so codecs can mix.
+  Codec 0 = PCM16LE frame, 1 = Opus packet, 2 = `Hello` roster heartbeat (no audio; older
+  builds drop it as unknown, so it needed no version bump). Receivers decode per packet, so codecs can mix.
 - `Transport` interface: `start(onPacket, onStatus)`, `send(packet, except)`, `stop()`,
   `relayWithin` (false for multicast). Stream transports frame packets with
   `StreamLink` (uint16 BE length prefix). A transport whose `start` throws is reported
@@ -41,6 +42,10 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - `LanTransport` sends every frame twice — to the multicast group and to the interface's
   IPv4 broadcast address — because plenty of APs filter multicast. One wildcard-bound
   socket receives both; the seen-cache drops the duplicate.
+- Roster: while connected a `ptt-heartbeat` thread sends a hello every second; every hello or
+  audio packet refreshes the sender's `Node` (name, transports, via, hops, talking). Silent for
+  4 s = dropped. `onRoster` fires only when the rendered list changes; the service mirrors the
+  head count into the notification title. Display name = Android device name, else `Build.MODEL`.
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
   transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
   decremented in place), then decode and play unless half-duplex and transmitting. Opus
@@ -64,8 +69,7 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-1. Roster and heartbeat packets so the UI can show who is online and via which transport.
-2. Settings screen: multicast group/port, Aware passphrase, sample rate, hop limit.
-3. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
-4. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
+1. Settings screen: multicast group/port, Aware passphrase, sample rate, hop limit.
+2. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
+3. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
    letting the jitter queue underrun.

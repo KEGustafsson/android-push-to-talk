@@ -2,6 +2,9 @@ package fi.arabella.ptt
 
 import android.content.Context
 import android.media.AudioManager
+import android.os.Build
+import android.os.SystemClock
+import android.provider.Settings
 import fi.arabella.ptt.audio.AudioCapture
 import fi.arabella.ptt.audio.AudioConfig
 import fi.arabella.ptt.audio.Mixer
@@ -10,11 +13,32 @@ import fi.arabella.ptt.audio.OpusEncoder
 import fi.arabella.ptt.transport.Transport
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 /**
- * Glue between mic, codec, transports, relay and mixer.
+ * One crew member as the roster sees it. [name] stays null for a phone on a build that
+ * predates hello packets; it is then listed from its audio, by id.
+ *
+ * [via] is the transport this phone heard it on last; [hops] how many relays that took;
+ * [transports] the flags from its hello ([Hello.describe]), i.e. what it is connected to.
+ */
+class Peer(
+    val id: Int,
+    val name: String?,
+    val transports: Int,
+    val via: String,
+    val hops: Int,
+    val talking: Boolean
+) {
+    val label: String get() = name ?: id.toUInt().toString(16)
+}
+
+/**
+ * Glue between mic, codec, transports, relay, roster and mixer.
  *
  * HALF_DUPLEX: mic runs only while the talk button is held; incoming audio is
  *              not played while transmitting (radio behaviour) but is still relayed.
@@ -31,8 +55,18 @@ import kotlin.random.Random
  * (excluding the link it came from) with ttl decremented. Duplicates are dropped
  * by the seen-cache, so a flood across a multi-hop Aware/BT topology terminates.
  * Running several transports at once makes this phone a bridge (e.g. boat Wi-Fi <-> Aware).
+ *
+ * Roster: while connected a heartbeat thread sends a [Hello] every second, and every
+ * hello or audio packet heard refreshes that sender's entry. A sender silent for
+ * [PEER_TIMEOUT_MS] is dropped; at most [MAX_NODES] are tracked. Timing uses the
+ * monotonic clock, so a wall-clock change never ages or revives anyone. [onRoster]
+ * fires only when the list actually changes.
  */
-class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
+class PttEngine(
+    context: Context,
+    private val onStatus: (String) -> Unit,
+    private val onRoster: (List<Peer>) -> Unit = {}
+) {
 
     enum class Mode { HALF_DUPLEX, FULL_DUPLEX }
 
@@ -47,15 +81,19 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
 
     @Volatile var relay: Boolean = true
 
-    /** Outgoing codec. Takes effect the next time the mic is keyed. */
+    /** Outgoing audio codec, PCM or OPUS. Takes effect the next time the mic is keyed. */
     @Volatile var codec: Packet.Codec = Packet.Codec.OPUS
 
     /** Hop budget stamped on packets this phone originates. */
     @Volatile var maxHops: Int = AudioConfig.DEFAULT_TTL
 
     val senderId: Int = Random.nextInt()
+    /** What the crew sees this phone as: the Android device name, falling back to the model. */
+    val displayName: String = deviceName(context)
     val isTalking: Boolean get() = talking
     val isConnected: Boolean get() = transports.isNotEmpty()
+    /** The roster as last published; the UI reads this when it (re)binds. */
+    val roster: List<Peer> get() = lastRoster
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val mixer = Mixer()
@@ -65,8 +103,24 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
     private val decoders = ConcurrentHashMap<Int, OpusDecoder>()
     private val undecodable = ConcurrentHashMap.newKeySet<Int>()   // senders whose decoder failed; reported once
     private val packetCount = AtomicInteger()
-    private var seq = 0
+    private val seq = AtomicInteger()                                // shared by the audio thread and the heartbeat
     @Volatile private var talking = false
+
+    private val nodes = ConcurrentHashMap<Int, Node>()
+    private var heartbeat: ScheduledExecutorService? = null
+    @Volatile private var lastRoster: List<Peer> = emptyList()
+    private var lastRosterKey = ""
+
+    /** Everything we know about one sender; refreshed by its hellos and its audio. */
+    private class Node {
+        @Volatile var name: String? = null
+        @Volatile var transports = 0
+        @Volatile var via = "?"
+        @Volatile var hops = 0
+        @Volatile var lastSeen = 0L
+        @Volatile var lastAudio = 0L
+        @Volatile var talking = false
+    }
 
     private val seenCapacity = 4096
     private val seen = object : LinkedHashMap<Long, Boolean>(seenCapacity, 0.75f, false) {
@@ -96,16 +150,23 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
                 try { t.stop() } catch (_: Exception) {}
             }
         }
+        heartbeat = Executors.newSingleThreadScheduledExecutor { Thread(it, "ptt-heartbeat") }.also {
+            it.scheduleAtFixedRate({ tick() }, 0, TICK_MS, TimeUnit.MILLISECONDS)
+        }
     }
 
     /** Stops everything and releases codecs; safe to call when already idle. */
     fun disconnect() {
         stopTalking()
+        heartbeat?.shutdownNow()
+        heartbeat = null
         for (t in transports) t.stop()
         transports.clear()
         mixer.stop()
         releaseDecoders()
         synchronized(seen) { seen.clear() }
+        nodes.clear()
+        publishRoster()
         audioManager.mode = AudioManager.MODE_NORMAL
     }
 
@@ -164,15 +225,15 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
     /** Full-duplex mic toggle. */
     fun toggleTalking() = if (talking) stopTalking() else startTalking()
 
-    /** Stamps and sends one of our own frames on every transport. */
+    /** Stamps and sends one of our own packets on every transport. */
     private fun broadcast(codec: Packet.Codec, payload: ByteArray) {
-        val s = seq++
+        val s = seq.getAndIncrement()
         markSeen(senderId, s)
         val packet = Packet.encode(senderId, s, codec, maxHops, payload)
         for (t in transports) t.send(packet)
     }
 
-    /** Receive path for every transport: dedupe, relay within the hop budget, then decode and play. */
+    /** Receive path for every transport: dedupe, relay within the hop budget, then roster, then decode and play. */
     private fun onPacket(p: ByteArray, from: Transport, link: Any?) {
         val h = Packet.parse(p) ?: return
         if (h.senderId == senderId) return
@@ -188,14 +249,92 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
             }
         }
 
+        if (h.codec == Packet.Codec.HELLO) {
+            Hello.decode(p, Packet.HEADER, p.size - Packet.HEADER)?.let { heardHello(h.senderId, it, from, h.ttl) }
+            return
+        }
+        heardAudio(h.senderId, from)
+
         if (packetCount.incrementAndGet() and 0xFF == 0) pruneDecoders()
         if (mode == Mode.HALF_DUPLEX && talking) return   // radio semantics
 
         when (h.codec) {
             Packet.Codec.PCM -> mixer.push(h.senderId, p, Packet.HEADER, p.size - Packet.HEADER)
             Packet.Codec.OPUS -> decodeOpus(h.senderId, p)
+            Packet.Codec.HELLO -> Unit                        // handled above
         }
     }
+
+    // ---- roster -------------------------------------------------------------------
+
+    /** Heartbeat thread: announce ourselves, drop the silent, clear stale talking marks, publish if anything moved. */
+    private fun tick() {
+        sendHello()
+        val now = SystemClock.elapsedRealtime()
+        var changed = false
+        for ((id, n) in nodes) {
+            if (now - n.lastSeen > PEER_TIMEOUT_MS) {
+                if (nodes.remove(id, n)) changed = true
+            } else if (n.talking && now - n.lastAudio > TALK_HOLD_MS) {
+                n.talking = false
+                changed = true
+            }
+        }
+        if (changed) publishRoster()
+    }
+
+    private fun sendHello() {
+        var flags = 0
+        for (t in transports) flags = flags or Hello.bitFor(t.name)
+        broadcast(Packet.Codec.HELLO, Hello(displayName, flags, maxHops).encode())
+    }
+
+    private fun heardHello(id: Int, hello: Hello, from: Transport, ttlLeft: Int) {
+        val n = nodeFor(id) ?: return
+        n.name = hello.name
+        n.transports = hello.transports
+        n.via = from.name
+        n.hops = (hello.ttl - ttlLeft).coerceAtLeast(0)
+        n.lastSeen = SystemClock.elapsedRealtime()
+        publishRoster()
+    }
+
+    /** Audio is proof of life too, and lights the talking mark; the roster is only republished when that flips. */
+    private fun heardAudio(id: Int, from: Transport) {
+        val n = nodeFor(id) ?: return
+        val now = SystemClock.elapsedRealtime()
+        n.lastSeen = now
+        n.lastAudio = now
+        n.via = from.name
+        if (!n.talking) {
+            n.talking = true
+            publishRoster()
+        }
+    }
+
+    /**
+     * The entry for a sender, created on first sight — unless the roster is already full, in
+     * which case an unknown sender is ignored. Sender ids are unauthenticated, so without a cap
+     * anyone in radio range could grow the list without bound by cycling ids faster than the
+     * 4 s expiry. The check and the insert are not one atomic step; a few over the cap is fine.
+     */
+    private fun nodeFor(id: Int): Node? =
+        nodes[id] ?: if (nodes.size >= MAX_NODES) null else nodes.computeIfAbsent(id) { Node() }
+
+    /** Rebuilds the list and hands it out only if it differs from the last one published. */
+    @Synchronized
+    private fun publishRoster() {
+        val list = nodes.entries
+            .map { (id, n) -> Peer(id, n.name, n.transports, n.via, n.hops, n.talking) }
+            .sortedBy { it.label.lowercase() }
+        val key = list.joinToString("|") { "${it.id}/${it.name}/${it.transports}/${it.via}/${it.hops}/${it.talking}" }
+        if (key == lastRosterKey) return
+        lastRosterKey = key
+        lastRoster = list
+        onRoster(list)
+    }
+
+    // ---- codecs -------------------------------------------------------------------
 
     /** Feeds one Opus packet to the sender's decoder and plays whatever frames come out. */
     private fun decodeOpus(sender: Int, p: ByteArray) {
@@ -262,5 +401,15 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         const val EVICT_IDLE_NS = 2_000_000_000L
         const val MAX_DECODERS = 8            // a crew, not a crowd; each one is a MediaCodec instance
         const val MAX_UNDECODABLE = 64
+
+        const val TICK_MS = 1_000L            // hello cadence; also how often talking marks and timeouts are checked
+        const val PEER_TIMEOUT_MS = 4_000L    // three missed hellos and a bit
+        const val TALK_HOLD_MS = 400L         // how long after the last frame a peer still shows as talking
+        const val MAX_NODES = 64              // far more than a crew; a ceiling, not a target
+
+        /** The name Android shows in Settings > About, which the user can change; the model otherwise. */
+        fun deviceName(context: Context): String =
+            try { Settings.Global.getString(context.contentResolver, "device_name") } catch (_: Exception) { null }
+                ?.takeIf { it.isNotBlank() } ?: Build.MODEL
     }
 }

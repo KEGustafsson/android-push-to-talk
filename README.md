@@ -60,6 +60,13 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    multicast group as soon as it is back. The status line says what it is waiting for.
    Whichever phone dialled a link is the one that restores it, so the "Listen only" side
    of a Bluetooth pair never has to do anything.
+11. **Roster**: every phone announces itself once a second (a 40-byte hello carrying its
+   Android device name, the transports it is on and its hop budget), relayed like audio.
+   The list under the status line shows who is online, how you hear them (which transport,
+   how many hops), what they are connected to, and who is talking; the notification title
+   shows the head count. A phone silent for 4 s drops off. Rename a phone in
+   Settings > About phone > Device name. Older builds simply ignore hellos and are listed
+   by id from their audio.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
@@ -74,7 +81,8 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `transport/Threads` — `transportThread`, so a transport thread reports instead of killing the app
 - `transport/Backoff` — 1 s → 15 s retry schedule shared by every reconnect path
 - `Packet` — 13-byte header: 'PT', version, codec, ttl, senderId, seq
-- `PttEngine` — modes, codec, multi‑transport, relay with (senderId, seq) seen‑cache and ttl
+- `Hello` — roster heartbeat payload: name, transport flags, hop budget
+- `PttEngine` — modes, codec, multi‑transport, relay with (senderId, seq) seen‑cache and ttl, roster + heartbeat
 - `PttService` — foreground service owning the engine, wake/Wi‑Fi locks, notification
 - `MainActivity` — UI, permissions; binds to the service while visible
 
