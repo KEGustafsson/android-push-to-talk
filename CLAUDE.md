@@ -32,6 +32,12 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   `relayWithin` (false for multicast). Stream transports frame packets with
   `StreamLink` (uint16 BE length prefix). A transport whose `start` throws is reported
   and dropped from the engine, never left in place silently swallowing frames.
+- Reconnect lives inside each transport, never in the engine: BT re-dials its chosen peer
+  from the reader's `finally`; Aware wraps each peer link in a `Dial` (a `NetworkCallback`
+  that ends exactly once and schedules its successor while discovery still sees the peer)
+  and re-attaches the whole session when Aware goes away; LAN's receive thread owns the
+  socket and re-opens it when it breaks or Wi-Fi changes interface/address. All of them
+  wait with `transport/Backoff` (1 s doubling to 15 s). The side that dialled restores.
 - `LanTransport` sends every frame twice — to the multicast group and to the interface's
   IPv4 broadcast address — because plenty of APs filter multicast. One wildcard-bound
   socket receives both; the seen-cache drops the duplicate.
@@ -59,8 +65,7 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 
 ## Known gaps / roadmap
 1. Roster and heartbeat packets so the UI can show who is online and via which transport.
-2. Reconnect logic for BT and Aware links after a drop (currently manual reconnect).
-3. Settings screen: multicast group/port, Aware passphrase, sample rate, hop limit.
-4. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
-5. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
+2. Settings screen: multicast group/port, Aware passphrase, sample rate, hop limit.
+3. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
+4. Opus packet loss concealment: feed the decoder a null packet for a missed seq instead of
    letting the jitter queue underrun.
