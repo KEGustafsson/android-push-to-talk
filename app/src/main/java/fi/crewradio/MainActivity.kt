@@ -55,8 +55,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var crewName: TextView
-    private lateinit var talkCard: View
-    private lateinit var talkingLine: TextView
+    private lateinit var channelLabel: TextView
+    private lateinit var peersIcon: ImageView
     private lateinit var peerCount: TextView
     private lateinit var pttButton: MaterialButton
     private lateinit var channelRow: View
@@ -108,8 +108,8 @@ class MainActivity : AppCompatActivity() {
 
         prefs = Prefs(this)
         crewName = findViewById(R.id.crewName)
-        talkCard = findViewById(R.id.talkCard)
-        talkingLine = findViewById(R.id.talkingLine)
+        channelLabel = findViewById(R.id.channelLabel)
+        peersIcon = findViewById(R.id.peersIcon)
         peerCount = findViewById(R.id.peerCount)
         pttButton = findViewById(R.id.pttButton)
         channelRow = findViewById(R.id.channelRow)
@@ -294,15 +294,25 @@ class MainActivity : AppCompatActivity() {
         pttButton.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, if (live) R.color.error else R.color.outline))
     }
 
-    /** The header count, and a green line naming whoever is talking; the full list lives on the Status screen. */
+    /**
+     * The header count, and whoever is talking shown in green on the label line above the
+     * channel name. Nothing changes size or position: a layout shift under the talk disc is
+     * the last thing a thumb about to press it needs. The full list lives on the Status screen.
+     */
     private fun renderRoster(peers: List<Peer>) {
         peerCount.text = peers.size.toString()
         val talking = peers.filter { it.talking }
+        val green = ContextCompat.getColor(this, R.color.talking)
         if (talking.isEmpty()) {
-            talkCard.visibility = View.GONE
+            channelLabel.text = getString(R.string.crew_channel)
+            channelLabel.setTextColor(ContextCompat.getColor(this, R.color.text_teal_dim))
+            peersIcon.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
+            peerCount.setTextColor(ContextCompat.getColor(this, R.color.text))
         } else {
-            talkingLine.text = "\u25CF " + getString(R.string.talking_line, talking.joinToString(", ") { it.label.uppercase() })
-            talkCard.visibility = View.VISIBLE
+            channelLabel.text = "\u25CF " + getString(R.string.talking_line, talking.joinToString(", ") { it.label.uppercase() })
+            channelLabel.setTextColor(green)
+            peersIcon.imageTintList = ColorStateList.valueOf(green)
+            peerCount.setTextColor(green)
         }
     }
 
