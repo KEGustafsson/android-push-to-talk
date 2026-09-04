@@ -108,6 +108,7 @@ class StatusActivity : AppCompatActivity() {
             rows.addView(kv("MODE", if (prefs.fullDuplex) "Full duplex" else "Half duplex"))
             rows.addView(kv("RELAY", if (prefs.relay) "On" else "Off"))
             rows.addView(kv("CODEC", if (prefs.opus) "Opus" else "PCM"))
+            rows.addView(kv("AUDIO", if (on) e?.audioRouteNow ?: "-" else if (prefs.speakerOnly) "Speaker" else "Headset or speaker"))
             rows.addView(kv("HOP LIMIT", prefs.hops.toString()))
         }
 

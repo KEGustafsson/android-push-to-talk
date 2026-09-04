@@ -32,6 +32,14 @@
             app:defaultValue="both"
             app:dialogTitle="Which buttons key the mic"
             app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            app:key="audio_route"
+            app:title="Audio output"
+            app:entries="@array/audio_route_entries"
+            app:entryValues="@array/audio_route_values"
+            app:defaultValue="auto"
+            app:dialogTitle="Where the voice goes"
+            app:useSimpleSummaryProvider="true" />
         <SwitchPreferenceCompat
             app:key="keep_screen_on"
             app:title="Keep screen on"

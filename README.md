@@ -30,6 +30,11 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 5. **Full duplex** (Settings > Talking): the button becomes a mic toggle, everyone is
    heard at once and overlapping talkers are mixed. A headset (wired or BT)
    gives far better results than speakerphone, though AEC is enabled.
+5b. **Headset** (Settings > Talking > Audio output): a Bluetooth headset gets the voice both
+   ways over its hands-free (SCO) link as soon as it is connected, a wired or USB headset when
+   plugged in, and the speakerphone otherwise; it follows the headset as it comes and goes
+   while on channel, with an "Audio: ..." status line on each change. Choose "Always the
+   speaker" to ignore headsets. The headset's own button keys the mic (see Talk button).
 6. **Screen off / background**: while connected the app runs as a foreground
    service with a wake lock and a Wi‑Fi lock, so you keep hearing the crew with
    the screen off or another app in front. The ongoing notification shows the
@@ -83,12 +88,13 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    (up to three in a row, then silence) instead of a click of silence, for Opus and PCM alike.
    The Status screen counts concealed frames, which is a good measure of how a link is doing.
 15. **Status** (menu): everything the main screen leaves out - each crew member with id,
-   transport, hops, what they are on and when last heard; this phone's addresses (Wi-Fi,
+   transport, hops, what they are on and when last heard; where the audio is going; this phone's addresses (Wi-Fi,
    the Aware link), the multicast group and port, Bluetooth name and hop limit in use;
    packet counters (received, sent, relayed, duplicates dropped, hellos); and the last 40
    status lines with time stamps. Refreshes every second while open.
 
 ## Layout
+- `audio/AudioRoute` — headset (Bluetooth SCO, wired, USB) or speakerphone, following headsets as they come and go
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
 - `audio/AudioPlayback` — AudioTrack, streaming
 - `audio/Mixer` — per-sender jitter queue + summing mixer

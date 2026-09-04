@@ -6,6 +6,14 @@
         <item>Volume keys</item>
         <item>Headset button and volume keys</item>
     </string-array>
+    <string-array name="audio_route_entries">
+        <item>Headset when connected, else speaker</item>
+        <item>Always the speaker</item>
+    </string-array>
+    <string-array name="audio_route_values">
+        <item>auto</item>
+        <item>speaker</item>
+    </string-array>
     <string-array name="hw_button_values">
         <item>off</item>
         <item>headset</item>

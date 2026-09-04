@@ -65,6 +65,8 @@ class Prefs(context: Context) {
     /** Which physical buttons key the mic while on channel: off, headset, volume or both. */
     val hwButton: String get() = sp.getString(KEY_HW_BUTTON, HW_BOTH) ?: HW_BOTH
     val keepScreenOn: Boolean get() = sp.getBoolean(KEY_KEEP_SCREEN_ON, true)
+    /** Headset when one is connected (auto) or always the loudspeaker. */
+    val speakerOnly: Boolean get() = sp.getString(KEY_AUDIO_ROUTE, ROUTE_AUTO) == ROUTE_SPEAKER
     val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
     val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
 
@@ -88,6 +90,9 @@ class Prefs(context: Context) {
         const val HW_VOLUME = "volume"
         const val HW_BOTH = "both"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+        const val KEY_AUDIO_ROUTE = "audio_route"
+        const val ROUTE_AUTO = "auto"
+        const val ROUTE_SPEAKER = "speaker"
         const val KEY_FULL_DUPLEX = "full_duplex"
         const val KEY_RELAY = "relay"
         const val KEY_OPUS = "opus"

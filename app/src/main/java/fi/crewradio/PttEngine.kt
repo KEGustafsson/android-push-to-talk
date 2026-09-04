@@ -1,12 +1,12 @@
 package fi.crewradio
 
 import android.content.Context
-import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
 import fi.crewradio.audio.AudioCapture
 import fi.crewradio.audio.AudioConfig
+import fi.crewradio.audio.AudioRoute
 import fi.crewradio.audio.Conceal
 import fi.crewradio.audio.Mixer
 import fi.crewradio.audio.OpusDecoder
@@ -114,7 +114,13 @@ class PttEngine(
     /** Names of the transports running right now. */
     val activeTransports: List<String> get() = transports.map { it.name }
 
-    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private val route = AudioRoute(context, onStatus)
+    /** Headset when connected (default) or always the speaker; applies immediately. */
+    var audioRoute: AudioRoute.Policy
+        get() = route.policy
+        set(value) { route.policy = value }
+    /** Where the voice is going right now, for the Status screen. */
+    val audioRouteNow: String get() = route.current
     private val mixer = Mixer()
     private val transports = CopyOnWriteArrayList<Transport>()
     private var capture: AudioCapture? = null
@@ -176,8 +182,7 @@ class PttEngine(
     fun connect(list: List<Transport>) {
         disconnect()
         counters = Counters()
-        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-        audioManager.isSpeakerphoneOn = true
+        route.start()
         mixer.start()
         for (t in list) {
             transports.add(t)
@@ -209,7 +214,7 @@ class PttEngine(
         nodes.clear()
         seqTracker.clear()
         publishRoster()
-        audioManager.mode = AudioManager.MODE_NORMAL
+        route.stop()
     }
 
     fun stats(): Stats = counters.snapshot(mixer.concealedFrames.get())

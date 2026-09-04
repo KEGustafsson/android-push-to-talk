@@ -63,6 +63,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   audio: `SeqTracker` (pure, wrap-aware, tested) admits each frame and reports the gap, the engine
   reserves that many slots in the mixer atomically with the admission, and the mixer fills them,
   and any queue that runs dry mid-talk, with the last frame fading over at most three slots.
+- Audio routing: `audio/AudioRoute` owns `AudioManager.mode` for the session and picks the
+  communication device: Bluetooth SCO headset, else wired/USB headset, else speakerphone
+  (`setCommunicationDevice` on API 31+, `startBluetoothSco`/`isSpeakerphoneOn` below). It
+  re-applies on every `AudioDeviceCallback` event and on a policy change; setting `audio_route`
+  (auto | speaker) is pushed into the engine with the other live settings.
 - Hardware talk button: `PttService` holds a `MediaSession` while on channel; headset/media
   buttons arrive as media button events, the volume keys through a remote `VolumeProvider`
   (the only way to get them with the screen off). Both toggle the mic. Setting `hw_button`.
@@ -90,5 +95,4 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 
 ## Known gaps / roadmap
 1. Wi-Fi Direct transport for phones without Wi-Fi Aware.
-2. Audio routing: Bluetooth headset (SCO) instead of forcing speakerphone.
-3. A release pipeline: signing config, version bumps, an APK per merge.
+2. A release pipeline: signing config, version bumps, an APK per merge.
