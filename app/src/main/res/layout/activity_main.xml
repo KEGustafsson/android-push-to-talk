@@ -137,20 +137,36 @@
         android:background="@drawable/bg_outline"
         android:visibility="gone" />
 
-    <!-- The one big action: on the channel or off it. -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/connectButton"
+    <!-- The channel switch: on it or off it, said quietly. The whole row toggles. -->
+    <LinearLayout
+        android:id="@+id/channelRow"
         android:layout_width="match_parent"
         android:layout_height="52dp"
         android:layout_marginTop="12dp"
-        android:insetTop="0dp"
-        android:insetBottom="0dp"
-        android:text="@string/connect_caps"
-        android:fontFamily="monospace"
-        android:letterSpacing="0.12"
-        android:textStyle="bold"
-        android:textSize="15sp"
-        app:cornerRadius="14dp" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:background="@drawable/bg_outline"
+        android:clickable="true"
+        android:focusable="true">
+        <TextView
+            android:id="@+id/channelState"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.08"
+            android:textSize="13sp"
+            android:textColor="@color/text_dim"
+            android:maxLines="1"
+            android:ellipsize="end" />
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/channelSwitch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp" />
+    </LinearLayout>
 
     <!-- Status + crew card. -->
     <LinearLayout

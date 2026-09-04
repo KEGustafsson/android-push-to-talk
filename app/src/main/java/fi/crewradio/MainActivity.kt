@@ -31,6 +31,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
 import fi.crewradio.transport.BluetoothTransport
 import fi.crewradio.transport.LanTransport
 import fi.crewradio.transport.Transport
@@ -59,7 +60,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var peerCount: TextView
     private lateinit var crewList: LinearLayout
     private lateinit var pttButton: MaterialButton
-    private lateinit var connectButton: MaterialButton
+    private lateinit var channelRow: View
+    private lateinit var channelState: TextView
+    private lateinit var channelSwitch: MaterialSwitch
+    private var syncingSwitch = false                  // true while syncUi() moves the switch itself
     private lateinit var peerButton: TextView
     private lateinit var menuButton: ImageButton
     private lateinit var tiles: List<Tile>
@@ -111,7 +115,9 @@ class MainActivity : AppCompatActivity() {
         peerCount = findViewById(R.id.peerCount)
         crewList = findViewById(R.id.crewList)
         pttButton = findViewById(R.id.pttButton)
-        connectButton = findViewById(R.id.connectButton)
+        channelRow = findViewById(R.id.channelRow)
+        channelState = findViewById(R.id.channelState)
+        channelSwitch = findViewById(R.id.channelSwitch)
         peerButton = findViewById(R.id.peerButton)
         menuButton = findViewById(R.id.menuButton)
         tiles = listOf(
@@ -143,15 +149,14 @@ class MainActivity : AppCompatActivity() {
         peerButton.setOnClickListener { v -> if (engine?.isConnected != true) showPeerMenu(v) }
         refreshPeer()
 
-        connectButton.setOnClickListener {
-            val s = service ?: return@setOnClickListener
-            if (s.engine.isConnected) {
-                s.disconnect()
-                syncUi()
-            } else if (hasPermissions()) {
-                connect(s)
-            } else {
-                requestPermissions()
+        channelRow.setOnClickListener { channelSwitch.toggle() }
+        channelSwitch.setOnCheckedChangeListener { _, on ->
+            if (syncingSwitch) return@setOnCheckedChangeListener
+            val s = service
+            when {
+                s == null -> syncUi()                                  // not bound yet; snap back
+                on && !s.engine.isConnected -> if (hasPermissions()) connect(s) else { requestPermissions(); syncUi() }
+                !on && s.engine.isConnected -> { s.disconnect(); syncUi() }
             }
         }
 
@@ -217,7 +222,7 @@ class MainActivity : AppCompatActivity() {
         if (tileOn(Prefs.KEY_USE_LAN)) list += LanTransport(ctx, prefs.group, prefs.port)
         if (tileOn(Prefs.KEY_USE_BT)) list += BluetoothTransport(ctx, pairedDevices.getOrNull(btPeerIndex - 1))
         if (tileOn(Prefs.KEY_USE_AWARE)) list += WifiAwareTransport(ctx, s.engine.senderId, prefs.passphrase)
-        if (list.isEmpty()) { status.text = "PICK A TRANSPORT FIRST"; return }
+        if (list.isEmpty()) { status.text = "PICK A TRANSPORT FIRST"; syncUi(); return }
         applySettings(s.engine)
         s.connect(list)
         syncUi()
@@ -236,23 +241,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Pulls the connect state from the engine into the widgets. The button names the state,
-     * like a radio's power light: a filled CONNECT to get on the channel, an outlined
-     * CONNECTED while on it (tap to leave).
+     * Pulls the connect state from the engine into the widgets: the channel switch and its
+     * one-line state, like the power switch on a radio. The switch is moved under
+     * [syncingSwitch] so its listener does not mistake that for the user.
      */
     private fun syncUi() {
         val connected = engine?.isConnected == true
-        connectButton.text = getString(if (connected) R.string.connected_caps else R.string.connect_caps)
-        if (connected) {
-            connectButton.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, android.R.color.transparent))
-            connectButton.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
-            connectButton.strokeWidth = (2 * resources.displayMetrics.density).toInt()
-            connectButton.setTextColor(ContextCompat.getColor(this, R.color.primary))
-        } else {
-            connectButton.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
-            connectButton.strokeWidth = 0
-            connectButton.setTextColor(ContextCompat.getColor(this, R.color.on_primary))
-        }
+        syncingSwitch = true
+        channelSwitch.isChecked = connected
+        syncingSwitch = false
+        channelState.text = getString(if (connected) R.string.channel_on else R.string.channel_off)
+        channelState.setTextColor(ContextCompat.getColor(this, if (connected) R.color.primary else R.color.text_dim))
         for (tile in tiles) tile.root.alpha = if (connected) 0.55f else 1f
         peerButton.alpha = if (connected) 0.55f else 1f
         refreshPttLabel()

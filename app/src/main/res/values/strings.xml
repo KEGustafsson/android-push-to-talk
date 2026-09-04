@@ -12,8 +12,8 @@
     <string name="peer_prefix">"PEER · "</string>
     <string name="peer_none">NO PEER · BLUETOOTH OFF</string>
     <string name="bt_listen_only">Listen only (act as server)</string>
-    <string name="connect_caps">CONNECT</string>
-    <string name="connected_caps">CONNECTED</string>
+    <string name="channel_off">OFF · TAP TO JOIN</string>
+    <string name="channel_on">ON CHANNEL</string>
     <string name="status_idle">NOT CONNECTED</string>
     <string name="aboard">%d ABOARD</string>
     <string name="ptt_talk">TALK</string>
