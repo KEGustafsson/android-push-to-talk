@@ -13,7 +13,7 @@
     <string name="peer_none">NO PEER · BLUETOOTH OFF</string>
     <string name="bt_listen_only">Listen only (act as server)</string>
     <string name="connect_caps">CONNECT</string>
-    <string name="disconnect_caps">DISCONNECT</string>
+    <string name="connected_caps">CONNECTED</string>
     <string name="status_idle">NOT CONNECTED</string>
     <string name="aboard">%d ABOARD</string>
     <string name="ptt_talk">TALK</string>

@@ -235,15 +235,19 @@ class MainActivity : AppCompatActivity() {
         e.displayName = prefs.name ?: e.defaultName
     }
 
-    /** Pulls the connect state from the engine into the widgets: a filled teal CONNECT, an outlined red DISCONNECT. */
+    /**
+     * Pulls the connect state from the engine into the widgets. The button names the state,
+     * like a radio's power light: a filled CONNECT to get on the channel, an outlined
+     * CONNECTED while on it (tap to leave).
+     */
     private fun syncUi() {
         val connected = engine?.isConnected == true
-        connectButton.text = getString(if (connected) R.string.disconnect_caps else R.string.connect_caps)
+        connectButton.text = getString(if (connected) R.string.connected_caps else R.string.connect_caps)
         if (connected) {
             connectButton.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, android.R.color.transparent))
-            connectButton.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.error))
+            connectButton.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
             connectButton.strokeWidth = (2 * resources.displayMetrics.density).toInt()
-            connectButton.setTextColor(ContextCompat.getColor(this, R.color.error))
+            connectButton.setTextColor(ContextCompat.getColor(this, R.color.primary))
         } else {
             connectButton.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary))
             connectButton.strokeWidth = 0
