@@ -5,9 +5,63 @@
     android:background="@color/surface"
     android:fillViewport="true">
     <LinearLayout
-        android:id="@+id/sections"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="16dp" />
+        android:padding="16dp">
+
+        <!-- Same header as the main screen, with the channel state where the count sits there. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/crew_channel"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.18"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_teal_dim" />
+                <TextView
+                    android:id="@+id/crewName"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:gravity="center_vertical"
+                    android:fontFamily="sans-serif-black"
+                    android:letterSpacing="0.1"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="14sp"
+                    android:autoSizeMaxTextSize="27sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:textColor="@color/primary"
+                    android:maxLines="1"
+                    android:layout_marginEnd="8dp" />
+            </LinearLayout>
+            <TextView
+                android:id="@+id/statePill"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:gravity="center"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.1"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:background="@drawable/bg_outline" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/cards"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </LinearLayout>
 </ScrollView>

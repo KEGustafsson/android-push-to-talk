@@ -17,6 +17,8 @@
     <string name="bt_listen_only">Listen only (act as server)</string>
     <string name="channel_off">OFF · TAP TO JOIN</string>
     <string name="channel_on">ON CHANNEL</string>
+    <string name="state_off">OFF</string>
+    <string name="status_off_hint">Switch the channel on to see who is aboard</string>
     <string name="status_idle">NOT CONNECTED</string>
     <string name="aboard">%d ABOARD</string>
     <string name="ptt_talk">TALK</string>
