@@ -3,8 +3,9 @@
 Kotlin, minSdk 29. No third-party audio libs: raw 16 kHz mono PCM16 in 20 ms frames.
 
 ## Build
-Open the folder in Android Studio (Hedgehog or newer), let it generate the Gradle
-wrapper, build, install on two or more phones.
+Open the folder in Android Studio (Koala or newer, for Android Gradle Plugin 8.5) and build, or run
+`./gradlew assembleDebug` with an Android SDK (platform 34) installed. Install on
+two or more phones.
 
 ## Use
 1. Tick one or more transports. A phone running several at once bridges
@@ -24,6 +25,16 @@ wrapper, build, install on two or more phones.
 5. **Full duplex**: flip the switch; the button becomes a mic toggle, everyone is
    heard at once and overlapping talkers are mixed. A headset (wired or BT)
    gives far better results than speakerphone, though AEC is enabled.
+6. **Screen off / background**: while connected the app runs as a foreground
+   service with a wake lock and a Wi‑Fi lock, so you keep hearing the crew with
+   the screen off or another app in front. The ongoing notification shows the
+   status line and has a Disconnect action. In full duplex the mic stays on in
+   the background too; half duplex needs the screen to hold the button.
+   On Android 13+ grant the notification permission; if you deny it the notification
+   is hidden from the drawer, but the session still runs and stays visible in the
+   system Task Manager. On Android 14+ the platform no longer lets an app keep Wi‑Fi
+   out of power save with the screen off, so expect slightly higher latency there
+   until the screen comes back on.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames
@@ -35,10 +46,10 @@ wrapper, build, install on two or more phones.
 - `transport/StreamLink` — uint16 length‑prefixed framing shared by BT and Aware
 - `Packet` — 10-byte header: 'PT', senderId, seq
 - `PttEngine` — modes, multi‑transport, relay with (senderId, seq) seen‑cache
-- `MainActivity` — UI, permissions
+- `PttService` — foreground service owning the engine, wake/Wi‑Fi locks, notification
+- `MainActivity` — UI, permissions; binds to the service while visible
 
 ## Next steps if you take it further
-- Foreground service + wake lock so it keeps running with the screen off.
 - Opus (libopus via JNI or `androidx.media3`) to cut bandwidth ~10×, which
   matters most on Bluetooth and marginal Wi-Fi.
 - Hop count in the header if you want to cap relay depth on big networks.

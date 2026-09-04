@@ -7,17 +7,22 @@ flooding relay so multiple transports and multi-hop topologies work.
 ## Stack
 - Kotlin, Android Gradle Plugin 8.5, Kotlin 2.0, minSdk 29, targetSdk 34, JDK 17.
 - No third-party audio libs. Raw 16 kHz mono PCM16, 20 ms frames (see `audio/AudioConfig`).
-- Build: `./gradlew assembleDebug` (generate the wrapper jar first with
-  `gradle wrapper` or by opening in Android Studio). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+- Build: `./gradlew assembleDebug` (wrapper is committed; needs an Android SDK with
+  platform 34 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
 - No unit tests yet. Real testing needs two or more physical phones; the emulator
   has no Bluetooth or Wi-Fi Aware.
 
 ## Architecture
 ```
-MainActivity  -> PttEngine -> Transport (LanTransport | BluetoothTransport | WifiAwareTransport)
-                     |-> AudioCapture (mic, AEC/NS)  -> Packet.encode -> transports
-                     |-> Mixer (per-sender jitter queue + sum) -> AudioPlayback
+MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | BluetoothTransport | WifiAwareTransport)
+                                         |-> AudioCapture (mic, AEC/NS)  -> Packet.encode -> transports
+                                         |-> Mixer (per-sender jitter queue + sum) -> AudioPlayback
 ```
+- `PttService`: bound while the activity is visible, promoted to a started foreground
+  service (types microphone|connectedDevice) with a partial wake lock and a low-latency
+  Wi-Fi lock for the duration of a session. Owns the engine; the notification mirrors the
+  status line and has a Disconnect action. The activity never disconnects on its own
+  lifecycle, only on the button or the notification action.
 - `Packet`: 10-byte header `'P' 'T' | senderId int32 | seq int32 | PCM16LE`.
 - `Transport` interface: `start(onPacket, onStatus)`, `send(packet, except)`, `stop()`,
   `relayWithin` (false for multicast). Stream transports frame packets with
@@ -36,9 +41,9 @@ MainActivity  -> PttEngine -> Transport (LanTransport | BluetoothTransport | Wif
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-1. Foreground service + wake lock so the app runs with the screen off.
-2. Opus encoding (libopus JNI or media3) to cut bandwidth ~10x — matters for BT and weak Wi-Fi.
-3. TTL / hop-count byte in the header to bound relay depth on larger networks.
-4. Roster and heartbeat packets so the UI can show who is online and via which transport.
-5. Reconnect logic for BT and Aware links after a drop (currently manual reconnect).
-6. Settings screen: multicast group/port, Aware passphrase, sample rate.
+1. Opus encoding (libopus JNI or media3) to cut bandwidth ~10x — matters for BT and weak Wi-Fi.
+2. TTL / hop-count byte in the header to bound relay depth on larger networks.
+3. Roster and heartbeat packets so the UI can show who is online and via which transport.
+4. Reconnect logic for BT and Aware links after a drop (currently manual reconnect).
+5. Settings screen: multicast group/port, Aware passphrase, sample rate.
+6. Hardware PTT: media/headset button or volume key to key the mic while the screen is off.
