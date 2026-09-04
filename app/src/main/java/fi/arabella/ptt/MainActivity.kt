@@ -214,9 +214,19 @@ class MainActivity : AppCompatActivity() {
         return list.toTypedArray()
     }
 
-    /** Nice to have: without it the foreground notification is hidden on Android 13+, but the service still runs. */
-    private fun optionalPermissions(): Array<String> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) arrayOf(Manifest.permission.POST_NOTIFICATIONS) else emptyArray()
+    /**
+     * Asked for, but not required to Connect:
+     * - POST_NOTIFICATIONS: without it the foreground notification is hidden on Android 13+,
+     *   but the service still runs.
+     * - BLUETOOTH_SCAN: only used to cancel an in-progress system scan before dialling a peer,
+     *   which makes RFCOMM connect faster; [BluetoothTransport] skips that step without it.
+     */
+    private fun optionalPermissions(): Array<String> {
+        val list = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) list += Manifest.permission.POST_NOTIFICATIONS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) list += Manifest.permission.BLUETOOTH_SCAN
+        return list.toTypedArray()
+    }
 
     /** True when every required (not optional) permission is granted. */
     private fun hasPermissions() = requiredPermissions().all {
