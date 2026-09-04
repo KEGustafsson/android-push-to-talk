@@ -3,4 +3,20 @@
     <string name="notification_channel">Intercom session</string>
     <string name="notification_title">PTT running</string>
     <string name="notification_disconnect">Disconnect</string>
+    <string name="title_main">Arabella PTT</string>
+    <string name="menu_settings">Settings</string>
+    <string name="label_transports">Connect via</string>
+    <string name="chip_lan">WLAN</string>
+    <string name="chip_bt">Bluetooth</string>
+    <string name="chip_aware">Wi‑Fi Aware</string>
+    <string name="hint_bt_peer">Bluetooth peer</string>
+    <string name="bt_listen_only">Listen only (act as server)</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="status_idle">Not connected</string>
+    <string name="ptt_hold">HOLD TO TALK</string>
+    <string name="ptt_talking">TALKING</string>
+    <string name="ptt_mic_on">MIC ON · TAP TO MUTE</string>
+    <string name="ptt_mic_off">MIC OFF · TAP TO TALK</string>
+    <string name="roster_alone">Nobody else online yet</string>
 </resources>

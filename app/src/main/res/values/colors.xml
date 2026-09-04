@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nautical teal palette for phones without dynamic colour (Android 11 and older). Overridden by values-night. -->
+<resources>
+    <color name="primary">#006874</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_container">#97F0FF</color>
+    <color name="on_primary_container">#001F24</color>
+    <color name="secondary">#4A6267</color>
+    <color name="on_secondary">#FFFFFF</color>
+    <color name="secondary_container">#CDE7EC</color>
+    <color name="on_secondary_container">#051F23</color>
+    <color name="error">#BA1A1A</color>
+    <color name="on_error">#FFFFFF</color>
+    <!-- The green dot next to whoever is talking. -->
+    <color name="talking">#2E7D32</color>
+</resources>

@@ -42,7 +42,7 @@ class PttService : Service() {
         private set
 
     /** Last status string from the engine; the activity shows it when it (re)binds. */
-    @Volatile var lastStatus: String = "Idle"
+    @Volatile var lastStatus: String = "Not connected"
         private set
 
     /** Set by the bound activity. Called on whichever thread reported the status. */
