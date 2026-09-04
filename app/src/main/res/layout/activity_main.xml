@@ -4,130 +4,230 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="?attr/colorSurface">
+    android:background="@color/surface"
+    android:padding="16dp">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:title="@string/title_main" />
-    </com.google.android.material.appbar.AppBarLayout>
-
+    <!-- Header: channel name, who is aboard, menu. -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/crew_channel"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"
+                android:textSize="12sp"
+                android:textColor="@color/text_teal_dim" />
+            <TextView
+                android:id="@+id/crewName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="0.1"
+                android:textSize="27sp"
+                android:textColor="@color/primary"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:layout_marginEnd="8dp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/peersBox"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:background="@drawable/bg_outline">
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_signal"
+                app:tint="@color/primary"
+                android:contentDescription="@null" />
+            <TextView
+                android:id="@+id/peerCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="0"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textSize="18sp"
+                android:textColor="@color/text" />
+        </LinearLayout>
+        <ImageButton
+            android:id="@+id/menuButton"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="4dp"
+            android:src="@drawable/ic_more_vert"
+            app:tint="@color/secondary"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/menu_settings" />
+    </LinearLayout>
+
+    <!-- Transport tiles. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="76dp"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/tileLan"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_tile_off">
+            <ImageView android:id="@+id/tileLanIcon" android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_wifi" android:contentDescription="@null" />
+            <TextView android:id="@+id/tileLanLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/tile_lan" android:fontFamily="monospace" android:letterSpacing="0.08" android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tileBt"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_tile_off">
+            <ImageView android:id="@+id/tileBtIcon" android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_bluetooth" android:contentDescription="@null" />
+            <TextView android:id="@+id/tileBtLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/tile_bt" android:fontFamily="monospace" android:letterSpacing="0.08" android:textSize="12sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/tileAware"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_tile_off">
+            <ImageView android:id="@+id/tileAwareIcon" android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_aware" android:contentDescription="@null" />
+            <TextView android:id="@+id/tileAwareLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="@string/tile_aware" android:fontFamily="monospace" android:letterSpacing="0.08" android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Bluetooth peer, only while Bluetooth is on. -->
+    <TextView
+        android:id="@+id/peerButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.06"
+        android:textSize="13sp"
+        android:textColor="@color/secondary"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:background="@drawable/bg_outline"
+        android:visibility="gone" />
+
+    <!-- The one big action: on the channel or off it. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/connectButton"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="12dp"
+        android:insetTop="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/connect_caps"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.12"
+        android:textStyle="bold"
+        android:textSize="15sp"
+        app:cornerRadius="14dp" />
+
+    <!-- Status + crew card. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
         android:orientation="vertical"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="16dp">
-
-        <TextView
+        android:paddingTop="12dp"
+        android:paddingBottom="10dp"
+        android:background="@drawable/bg_card">
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/label_transports"
-            android:textAppearance="?attr/textAppearanceLabelLarge"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
-        <com.google.android.material.chip.ChipGroup
-            android:id="@+id/transportChips"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:chipSpacingHorizontal="8dp"
-            app:chipSpacingVertical="4dp">
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipLan"
-                style="@style/Widget.Material3.Chip.Filter"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+            <TextView
+                android:id="@+id/status"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/status_idle"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.08"
+                android:textSize="12sp"
+                android:textColor="@color/text_teal_dim"
+                android:maxLines="2"
+                android:ellipsize="end" />
+            <TextView
+                android:id="@+id/aboard"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checkable="true"
-                app:checkedIconVisible="false"
-                android:text="@string/chip_lan" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipBt"
-                style="@style/Widget.Material3.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checkable="true"
-                app:checkedIconVisible="false"
-                android:text="@string/chip_bt" />
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipAware"
-                style="@style/Widget.Material3.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checkable="true"
-                app:checkedIconVisible="false"
-                android:text="@string/chip_aware" />
-        </com.google.android.material.chip.ChipGroup>
-
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/btPeerLayout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_marginStart="12dp"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.16"
+                android:textSize="12sp"
+                android:textColor="@color/text_teal_dim" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/crewList"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/hint_bt_peer"
-            android:visibility="gone">
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/btPeer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="none" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:layout_marginTop="4dp"
+            android:orientation="vertical" />
+    </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/connectButton"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="12dp"
-            android:text="@string/connect"
-            android:textSize="16sp"
-            app:cornerRadius="16dp" />
-
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerHigh">
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-                <TextView
-                    android:id="@+id/status"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="@string/status_idle"
-                    android:textAppearance="?attr/textAppearanceBodyLarge" />
-                <TextView
-                    android:id="@+id/roster"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:lineSpacingExtra="4dp"
-                    android:textAppearance="?attr/textAppearanceBodyMedium" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
+    <!-- The talk disc: as large a circle as the remaining space allows. -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp">
         <com.google.android.material.button.MaterialButton
             android:id="@+id/pttButton"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:layout_marginTop="16dp"
             android:insetTop="0dp"
             android:insetBottom="0dp"
-            android:text="@string/ptt_hold"
-            android:textSize="30sp"
-            android:letterSpacing="0.05"
-            app:cornerRadius="36dp" />
-    </LinearLayout>
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            android:fontFamily="monospace"
+            android:textSize="40sp"
+            android:letterSpacing="0.14"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:text="@string/ptt_talk"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.PTT.Circle"
+            app:strokeWidth="12dp"
+            app:strokeColor="@color/outline"
+            app:backgroundTint="@color/primary"
+            android:textColor="@color/on_primary"
+            app:layout_constraintDimensionRatio="1:1"
+            app:layout_constraintWidth_percent="1.0"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </LinearLayout>

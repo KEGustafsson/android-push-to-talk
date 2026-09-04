@@ -1,4 +1,4 @@
-# PTT — push-to-talk / intercom for Android over WLAN or Bluetooth
+# Crew Radio — push-to-talk / intercom for Android over WLAN, Bluetooth or Wi-Fi Aware
 
 Kotlin, minSdk 29. No third-party audio libs: 16 kHz mono in 20 ms frames, sent as
 Opus (via the platform codec) or raw PCM16.

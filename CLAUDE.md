@@ -1,6 +1,7 @@
-# PTT — project guide for Claude Code
+# Crew Radio — project guide for Claude Code
 
-Android push-to-talk / intercom app for a boat crew (vessel Arabella). Works over
+Android push-to-talk / intercom app for a boat crew (package `fi.crewradio`, app name
+"Crew Radio"; the boat or crew name is a user setting shown in the header). Works over
 WLAN multicast, Bluetooth Classic RFCOMM and Wi-Fi Aware, with an app-level
 flooding relay so multiple transports and multi-hop topologies work.
 

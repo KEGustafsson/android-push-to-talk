@@ -1,16 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Nautical teal palette for phones without dynamic colour (Android 11 and older). Overridden by values-night. -->
+<!--
+    The Radio look: teal on charcoal, always dark. A cockpit app is used at night more than
+    a normal phone app, and the design was chosen for this exact palette, so there is no
+    light variant and no dynamic colour.
+-->
 <resources>
-    <color name="primary">#006874</color>
-    <color name="on_primary">#FFFFFF</color>
-    <color name="primary_container">#97F0FF</color>
-    <color name="on_primary_container">#001F24</color>
-    <color name="secondary">#4A6267</color>
-    <color name="on_secondary">#FFFFFF</color>
-    <color name="secondary_container">#CDE7EC</color>
-    <color name="on_secondary_container">#051F23</color>
-    <color name="error">#BA1A1A</color>
-    <color name="on_error">#FFFFFF</color>
-    <!-- The green dot next to whoever is talking. -->
-    <color name="talking">#2E7D32</color>
+    <color name="primary">#4FD8EB</color>
+    <color name="on_primary">#00363D</color>
+    <color name="primary_container">#004F58</color>
+    <color name="on_primary_container">#97F0FF</color>
+    <color name="secondary">#B1CBD0</color>
+    <color name="on_secondary">#1C3439</color>
+    <color name="secondary_container">#334B4F</color>
+    <color name="on_secondary_container">#CDE7EC</color>
+    <color name="error">#FFB4AB</color>
+    <color name="on_error">#690005</color>
+
+    <color name="surface">#101416</color>
+    <color name="surface_card">#171C1E</color>
+    <color name="outline">#2E3436</color>
+    <color name="text">#E1E3E3</color>
+    <color name="text_dim">#899294</color>
+    <color name="text_teal_dim">#7FA6AC</color>
+    <color name="tile_selected">#0F2A2F</color>
+    <color name="dot_idle">#3A4547</color>
+    <!-- The green of whoever is talking. -->
+    <color name="talking">#81C784</color>
+    <!-- The talk disc while this phone transmits. -->
+    <color name="on_air">#93000A</color>
+    <color name="on_air_text">#FFDAD6</color>
 </resources>

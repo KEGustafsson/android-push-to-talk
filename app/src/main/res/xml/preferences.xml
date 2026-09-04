@@ -3,6 +3,11 @@
 
     <PreferenceCategory app:title="This phone">
         <EditTextPreference
+            app:key="crew_name"
+            app:title="Crew name"
+            app:dialogMessage="Shown large at the top of the main screen: the boat or the crew. Up to 24 characters; empty shows the app name."
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
             app:key="display_name"
             app:title="Name shown to the crew"
             app:dialogMessage="Leave empty to use the Android device name. Up to 32 bytes. Applies immediately."
@@ -47,7 +52,7 @@
         <EditTextPreference
             app:key="aware_passphrase"
             app:title="Passphrase"
-            app:defaultValue="arabella-ptt"
+            app:defaultValue="crew-radio"
             app:dialogMessage="8 to 63 plain ASCII characters. Phones only link up when it matches, so it doubles as the crew name."
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>

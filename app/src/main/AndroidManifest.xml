@@ -33,7 +33,7 @@
     <uses-feature android:name="android.hardware.wifi.aware" android:required="false" />
 
     <application
-        android:label="PTT"
+        android:label="@string/app_name"
         android:theme="@style/Theme.PTT"
         android:allowBackup="false">
         <activity
