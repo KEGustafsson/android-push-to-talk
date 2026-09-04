@@ -48,6 +48,13 @@ class PttService : Service() {
     /** Set by the bound activity. Called on whichever thread reported the status. */
     @Volatile var statusListener: ((String) -> Unit)? = null
 
+    /** Last roster the engine published; the activity shows it when it (re)binds. */
+    @Volatile var lastRoster: List<Peer> = emptyList()
+        private set
+
+    /** Set by the bound activity. Called on the engine's heartbeat or a transport thread. */
+    @Volatile var rosterListener: ((List<Peer>) -> Unit)? = null
+
     private val binder = LocalBinder()
     private var wakeLock: PowerManager.WakeLock? = null
     private val wifiLocks = mutableListOf<WifiManager.WifiLock>()
@@ -55,7 +62,7 @@ class PttService : Service() {
     /** Creates the engine and the notification channel; the engine lives as long as the service. */
     override fun onCreate() {
         super.onCreate()
-        engine = PttEngine(this, ::onStatus)
+        engine = PttEngine(this, ::onStatus, ::onRoster)
         createChannel()
     }
 
@@ -108,6 +115,13 @@ class PttService : Service() {
         if (engine.isConnected) showForeground(msg)
     }
 
+    /** Engine roster sink: remembers the list, forwards it to the UI and puts the head count in the notification title. */
+    private fun onRoster(peers: List<Peer>) {
+        lastRoster = peers
+        rosterListener?.invoke(peers)
+        if (engine.isConnected) showForeground(lastStatus)
+    }
+
     // ---- foreground notification -------------------------------------------------
 
     /** (Re)posts the foreground notification. Re-calling startForeground is the documented way to update it. */
@@ -136,9 +150,11 @@ class PttService : Service() {
             Intent(this, PttService::class.java).setAction(ACTION_DISCONNECT),
             flags
         )
+        val online = lastRoster.size
+        val title = getString(R.string.notification_title) + if (online > 0) " · $online online" else ""
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_ptt)
-            .setContentTitle(getString(R.string.notification_title))
+            .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(open)
             .addAction(0, getString(R.string.notification_disconnect), disconnect)

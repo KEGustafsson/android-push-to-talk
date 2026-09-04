@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
     private val engine: PttEngine? get() = service?.engine
 
     private lateinit var status: TextView
+    private lateinit var rosterView: TextView
     private lateinit var pttButton: Button
     private lateinit var connectButton: Button
     private lateinit var btSpinner: Spinner
@@ -61,7 +62,9 @@ class MainActivity : AppCompatActivity() {
             val s = (binder as PttService.LocalBinder).service
             service = s
             s.statusListener = { msg -> runOnUiThread { status.text = msg; syncUi() } }
+            s.rosterListener = { peers -> runOnUiThread { rosterView.text = renderRoster(peers) } }
             status.text = s.lastStatus
+            rosterView.text = renderRoster(s.lastRoster)
             if (!s.engine.isConnected) applyUiToEngine(s.engine)
             syncUi()
         }
@@ -80,6 +83,7 @@ class MainActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         status = findViewById(R.id.status)
+        rosterView = findViewById(R.id.roster)
         pttButton = findViewById(R.id.pttButton)
         connectButton = findViewById(R.id.connectButton)
         btSpinner = findViewById(R.id.btDevices)
@@ -145,6 +149,7 @@ class MainActivity : AppCompatActivity() {
     /** Unbinds without touching the session: a connected service keeps running as a started foreground service. */
     override fun onStop() {
         service?.statusListener = null
+        service?.rosterListener = null
         service = null
         unbindService(connection)   // the service keeps running while connected; see PttService
         super.onStop()
@@ -183,6 +188,22 @@ class MainActivity : AppCompatActivity() {
             opusSwitch.isChecked = e.codec == Packet.Codec.OPUS
         }
         refreshPttLabel()
+    }
+
+    /**
+     * One line per crew member: name, how we hear them (transport and hops), what they are
+     * connected to, and whether they are talking right now. Empty when not connected.
+     */
+    private fun renderRoster(peers: List<Peer>): String {
+        if (peers.isEmpty()) return if (engine?.isConnected == true) "Nobody else online yet" else ""
+        return peers.joinToString("\n", prefix = "${peers.size} online\n") { p ->
+            val parts = mutableListOf(p.label)
+            parts += "via ${p.via}" + if (p.hops > 0) " (${p.hops} hop${if (p.hops == 1) "" else "s"})" else ""
+            val on = Hello.describe(p.transports)
+            if (on.isNotEmpty() && on != p.via) parts += "on $on"   // only worth a word when it adds one
+            if (p.talking) parts += "talking"
+            "• " + parts.joinToString(" · ")
+        }
     }
 
     /** Big-button caption for the current mode and mic state. */

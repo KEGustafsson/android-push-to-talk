@@ -59,6 +59,13 @@
         android:paddingTop="8dp"
         android:text="Idle" />
 
+    <TextView
+        android:id="@+id/roster"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="4dp"
+        android:textSize="14sp" />
+
     <Button
         android:id="@+id/pttButton"
         android:layout_width="match_parent"
