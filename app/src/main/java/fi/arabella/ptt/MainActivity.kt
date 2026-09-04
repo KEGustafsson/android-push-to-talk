@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -39,10 +40,12 @@ class MainActivity : AppCompatActivity() {
     private var service: PttService? = null
     private val engine: PttEngine? get() = service?.engine
 
+    private lateinit var prefs: Prefs
     private lateinit var status: TextView
     private lateinit var rosterView: TextView
     private lateinit var pttButton: Button
     private lateinit var connectButton: Button
+    private lateinit var settingsButton: Button
     private lateinit var btSpinner: Spinner
     private lateinit var checkLan: CheckBox
     private lateinit var checkBt: CheckBox
@@ -66,6 +69,7 @@ class MainActivity : AppCompatActivity() {
             status.text = s.lastStatus
             rosterView.text = renderRoster(s.lastRoster)
             if (!s.engine.isConnected) applyUiToEngine(s.engine)
+            applySettings(s.engine)
             syncUi()
         }
 
@@ -82,10 +86,12 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        prefs = Prefs(this)
         status = findViewById(R.id.status)
         rosterView = findViewById(R.id.roster)
         pttButton = findViewById(R.id.pttButton)
         connectButton = findViewById(R.id.connectButton)
+        settingsButton = findViewById(R.id.settingsButton)
         btSpinner = findViewById(R.id.btDevices)
         checkLan = findViewById(R.id.checkLan)
         checkBt = findViewById(R.id.checkBt)
@@ -94,20 +100,41 @@ class MainActivity : AppCompatActivity() {
         relaySwitch = findViewById(R.id.relaySwitch)
         opusSwitch = findViewById(R.id.opusSwitch)
 
+        settingsButton.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+
+        // Every choice on this screen is remembered, so on the boat it is open the app, press Connect.
+        checkLan.setOnCheckedChangeListener { _, on -> prefs.put(Prefs.KEY_USE_LAN, on) }
+        checkAware.setOnCheckedChangeListener { _, on -> prefs.put(Prefs.KEY_USE_AWARE, on) }
         checkBt.setOnCheckedChangeListener { _, on ->
+            prefs.put(Prefs.KEY_USE_BT, on)
             btSpinner.visibility = if (on) View.VISIBLE else View.GONE
             if (on) loadPairedDevices()
         }
+        btSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                prefs.put(Prefs.KEY_BT_PEER, pairedDevices.getOrNull(position - 1)?.address ?: "")
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
         duplexSwitch.setOnCheckedChangeListener { _, on ->
+            prefs.put(Prefs.KEY_FULL_DUPLEX, on)
             engine?.mode = if (on) PttEngine.Mode.FULL_DUPLEX else PttEngine.Mode.HALF_DUPLEX
             refreshPttLabel()
         }
-        relaySwitch.isChecked = true
-        relaySwitch.setOnCheckedChangeListener { _, on -> engine?.relay = on }
-        opusSwitch.isChecked = true
+        relaySwitch.setOnCheckedChangeListener { _, on ->
+            prefs.put(Prefs.KEY_RELAY, on)
+            engine?.relay = on
+        }
         opusSwitch.setOnCheckedChangeListener { _, on ->
+            prefs.put(Prefs.KEY_OPUS, on)
             engine?.codec = if (on) Packet.Codec.OPUS else Packet.Codec.PCM
         }
+        checkLan.isChecked = prefs.bool(Prefs.KEY_USE_LAN, true)
+        checkAware.isChecked = prefs.bool(Prefs.KEY_USE_AWARE, false)
+        checkBt.isChecked = prefs.bool(Prefs.KEY_USE_BT, false)     // after its listener, so the spinner fills
+        duplexSwitch.isChecked = prefs.bool(Prefs.KEY_FULL_DUPLEX, false)
+        relaySwitch.isChecked = prefs.bool(Prefs.KEY_RELAY, true)
+        opusSwitch.isChecked = prefs.bool(Prefs.KEY_OPUS, true)
 
         connectButton.setOnClickListener {
             val s = service ?: return@setOnClickListener
@@ -146,6 +173,12 @@ class MainActivity : AppCompatActivity() {
         bindService(Intent(this, PttService::class.java), connection, Context.BIND_AUTO_CREATE)
     }
 
+    /** Coming back from the settings screen: push the live-applicable settings into the engine. */
+    override fun onResume() {
+        super.onResume()
+        engine?.let { applySettings(it) }
+    }
+
     /** Unbinds without touching the session: a connected service keeps running as a started foreground service. */
     override fun onStop() {
         service?.statusListener = null
@@ -159,15 +192,22 @@ class MainActivity : AppCompatActivity() {
     private fun connect(s: PttService) {
         val ctx = applicationContext
         val list = mutableListOf<Transport>()
-        if (checkLan.isChecked) list += LanTransport(ctx)
+        if (checkLan.isChecked) list += LanTransport(ctx, prefs.group, prefs.port)
         if (checkBt.isChecked) {
             val peer = pairedDevices.getOrNull(btSpinner.selectedItemPosition - 1) // 0 = listen only
             list += BluetoothTransport(ctx, peer)
         }
-        if (checkAware.isChecked) list += WifiAwareTransport(ctx, s.engine.senderId)
+        if (checkAware.isChecked) list += WifiAwareTransport(ctx, s.engine.senderId, prefs.passphrase)
         if (list.isEmpty()) { status.text = "Pick at least one transport"; return }
+        applySettings(s.engine)
         s.connect(list)
         syncUi()
+    }
+
+    /** The settings that apply without a reconnect: hop limit and the announced name. */
+    private fun applySettings(e: PttEngine) {
+        e.maxHops = prefs.hops
+        e.displayName = prefs.name ?: e.defaultName
     }
 
     /** Pushes the switch positions into an idle engine. */
@@ -223,6 +263,8 @@ class MainActivity : AppCompatActivity() {
         pairedDevices = adapter?.bondedDevices?.toList()?.sortedBy { it.name ?: it.address } ?: emptyList()
         val labels = listOf("Listen only (act as server)") + pairedDevices.map { it.name ?: it.address }
         btSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
+        val remembered = pairedDevices.indexOfFirst { it.address == prefs.string(Prefs.KEY_BT_PEER) }
+        if (remembered >= 0) btSpinner.setSelection(remembered + 1)
     }
 
     /** Permissions without which Connect cannot work. */

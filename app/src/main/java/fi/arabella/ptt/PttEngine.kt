@@ -88,8 +88,10 @@ class PttEngine(
     @Volatile var maxHops: Int = AudioConfig.DEFAULT_TTL
 
     val senderId: Int = Random.nextInt()
-    /** What the crew sees this phone as: the Android device name, falling back to the model. */
-    val displayName: String = deviceName(context)
+    /** The Android device name, falling back to the model: what [displayName] is unless settings say otherwise. */
+    val defaultName: String = deviceName(context)
+    /** What the crew sees this phone as. Read at every heartbeat, so a change shows up within a second. */
+    @Volatile var displayName: String = defaultName
     val isTalking: Boolean get() = talking
     val isConnected: Boolean get() = transports.isNotEmpty()
     /** The roster as last published; the UI reads this when it (re)binds. */

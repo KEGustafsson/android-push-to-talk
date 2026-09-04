@@ -5,10 +5,23 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Transports (pick one or more — several = this phone bridges them)" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Transports (pick one or more — several = this phone bridges them)" />
+        <Button
+            android:id="@+id/settingsButton"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Settings" />
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
