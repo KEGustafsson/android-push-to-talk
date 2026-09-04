@@ -59,6 +59,7 @@ class OpusDecoder {
         drain(onFrame)
     }
 
+    /** Pulls all decoded output, resamples it to 16 kHz and emits complete frames. */
     private fun drain(onFrame: (ByteArray) -> Unit) {
         while (true) {
             val idx = codec.dequeueOutputBuffer(info, 0)
@@ -83,6 +84,7 @@ class OpusDecoder {
         }
     }
 
+    /** Reads the decoder's real output rate (48 kHz on AOSP) and sets up the matching decimator. */
     private fun onFormat(fmt: MediaFormat) {
         val rate = fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         val channels = fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
@@ -94,12 +96,14 @@ class OpusDecoder {
         decimator = if (factor > 1) Decimator(factor) else null
     }
 
+    /** Adds 16 kHz samples to the pending buffer, growing it if a burst arrives. */
     private fun append(samples: ShortArray) {
         if (pendingLen + samples.size > pending.size) pending = pending.copyOf((pendingLen + samples.size) * 2)
         System.arraycopy(samples, 0, pending, pendingLen, samples.size)
         pendingLen += samples.size
     }
 
+    /** Cuts the pending samples into whole 20 ms frames and keeps the remainder for next time. */
     private fun emitFrames(onFrame: (ByteArray) -> Unit) {
         var start = 0
         while (pendingLen - start >= AudioConfig.FRAME_SAMPLES) {
@@ -115,6 +119,7 @@ class OpusDecoder {
         }
     }
 
+    /** Stops and frees the MediaCodec; the decoder cannot be reused afterwards. */
     fun release() {
         try { codec.stop() } catch (_: Exception) {}
         codec.release()

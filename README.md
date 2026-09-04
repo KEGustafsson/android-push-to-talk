@@ -44,7 +44,11 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    PCM by itself and says so in the status line. Changes take effect the next time
    the mic is keyed.
 8. **Hop limit**: packets carry a hop count (4 by default) that each relay decrements,
-   so a flood cannot circulate forever on a large mesh.
+   so a flood cannot circulate forever on a large mesh. A relay never forwards a packet
+   further than its own budget, whatever the sender stamped.
+9. **Same version everywhere**: the packet header changed with Opus support and there is
+   no compatibility mode. Phones on an older build simply hear nothing from newer ones
+   (and vice versa), so update the whole crew together.
 
 ## Layout
 - `audio/AudioCapture` — AudioRecord + AEC/NS, 20 ms frames

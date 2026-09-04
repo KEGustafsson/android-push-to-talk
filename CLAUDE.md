@@ -32,9 +32,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   `relayWithin` (false for multicast). Stream transports frame packets with
   `StreamLink` (uint16 BE length prefix).
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
-  transports/links if `relay` is on and ttl > 1 (decremented in place), then decode and
-  play unless half-duplex and transmitting. Opus decoders are per sender, created on demand
-  and released after 30 s of silence. Encoder failure falls back to PCM and reports it.
+  transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
+  decremented in place), then decode and play unless half-duplex and transmitting. Opus
+  decoders are per sender, created on demand, at most 8 at once (quietest evicted), released
+  after 30 s of silence. Encoder failure falls back to PCM and reports it.
+- Wire format has no legacy mode: every phone must run the same build (README says so).
 - Wi-Fi Aware: every node publishes and subscribes; lower senderId initiates the
   data path (one link per pair). Publisher uses accept-any on API 31+.
 

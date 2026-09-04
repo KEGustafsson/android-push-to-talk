@@ -43,6 +43,7 @@ class OpusEncoder(private val onPacket: (ByteArray) -> Unit) {
         drain()
     }
 
+    /** Hands every finished packet to [onPacket]; codec-config output is skipped, receivers synthesise their own. */
     private fun drain() {
         while (true) {
             val idx = codec.dequeueOutputBuffer(info, 0)
@@ -60,6 +61,7 @@ class OpusEncoder(private val onPacket: (ByteArray) -> Unit) {
         }
     }
 
+    /** Stops and frees the MediaCodec; the encoder cannot be reused afterwards. */
     fun release() {
         try { codec.stop() } catch (_: Exception) {}
         codec.release()

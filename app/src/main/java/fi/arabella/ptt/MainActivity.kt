@@ -52,12 +52,17 @@ class MainActivity : AppCompatActivity() {
     private var pairedDevices: List<BluetoothDevice> = emptyList()
 
     private val connection = object : ServiceConnection {
-        /** Adopts the service's engine and pulls its current state into the widgets. */
+        /**
+         * Adopts the service's engine. A running session is the source of truth for the
+         * switches; an idle engine only has defaults, so anything the user flipped before
+         * the bind completed is pushed into it instead of being overwritten.
+         */
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             val s = (binder as PttService.LocalBinder).service
             service = s
             s.statusListener = { msg -> runOnUiThread { status.text = msg; syncUi() } }
             status.text = s.lastStatus
+            if (!s.engine.isConnected) applyUiToEngine(s.engine)
             syncUi()
         }
 
@@ -160,7 +165,14 @@ class MainActivity : AppCompatActivity() {
         syncUi()
     }
 
-    /** Pulls connect state, mode and relay from the engine into the widgets. */
+    /** Pushes the switch positions into an idle engine. */
+    private fun applyUiToEngine(e: PttEngine) {
+        e.mode = if (duplexSwitch.isChecked) PttEngine.Mode.FULL_DUPLEX else PttEngine.Mode.HALF_DUPLEX
+        e.relay = relaySwitch.isChecked
+        e.codec = if (opusSwitch.isChecked) Packet.Codec.OPUS else Packet.Codec.PCM
+    }
+
+    /** Pulls connect state, mode, relay and codec from the engine into the widgets. */
     private fun syncUi() {
         val e = engine
         val connected = e?.isConnected == true

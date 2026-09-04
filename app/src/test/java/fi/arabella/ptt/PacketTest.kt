@@ -31,13 +31,15 @@ class PacketTest {
     }
 
     @Test
-    fun ttlDecrementsInPlaceAndStopsAtZero() {
+    fun ttlCanBeRewrittenInPlace() {
         val p = Packet.encode(1, 1, Packet.Codec.PCM, 2, payload)
-        assertEquals(1, Packet.decrementTtl(p))
+        Packet.setTtl(p, 1)
         assertEquals(1, Packet.parse(p)!!.ttl)
-        assertEquals(0, Packet.decrementTtl(p))
-        assertEquals(0, Packet.decrementTtl(p))
+        Packet.setTtl(p, -5)
         assertEquals(0, Packet.parse(p)!!.ttl)
+        Packet.setTtl(p, 300)
+        assertEquals(255, Packet.parse(p)!!.ttl)
+        assertArrayEquals(payload, p.copyOfRange(Packet.HEADER, p.size))
     }
 
     @Test

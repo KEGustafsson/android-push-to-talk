@@ -79,6 +79,7 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         synchronized(seen) { return seen.put(key, true) == null }
     }
 
+    /** Starts playback and the given transports; any transport that fails to start is reported and skipped. */
     fun connect(list: List<Transport>) {
         disconnect()
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
@@ -90,6 +91,7 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         }
     }
 
+    /** Stops everything and releases codecs; safe to call when already idle. */
     fun disconnect() {
         stopTalking()
         for (t in transports) t.stop()
@@ -100,6 +102,7 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         audioManager.mode = AudioManager.MODE_NORMAL
     }
 
+    /** Keys the mic: opens the encoder (if Opus) and the capture; on failure everything is released again. */
     fun startTalking() {
         if (talking || transports.isEmpty()) return
         talking = true
@@ -111,7 +114,7 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
                 null
             }
         } else null
-        capture = AudioCapture { pcm ->
+        val cap = AudioCapture { pcm ->
             val e = encoder
             if (e == null) {
                 broadcast(Packet.Codec.PCM, pcm)
@@ -125,12 +128,22 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
                     broadcast(Packet.Codec.PCM, pcm)
                 }
             }
-        }.also {
-            try { it.start() } catch (e: Exception) { talking = false; onStatus("Mic error: ${e.message}") }
         }
-        if (talking) onStatus(if (mode == Mode.FULL_DUPLEX) "Mic on" else "Transmitting")
+        try {
+            cap.start()
+        } catch (e: Exception) {
+            cap.stop()                     // frees an AudioRecord that was created but never started
+            encoder?.release()
+            encoder = null
+            talking = false
+            onStatus("Mic error: ${e.message}")
+            return
+        }
+        capture = cap
+        onStatus(if (mode == Mode.FULL_DUPLEX) "Mic on" else "Transmitting")
     }
 
+    /** Un-keys the mic and releases the capture and encoder. */
     fun stopTalking() {
         if (!talking) return
         talking = false
@@ -141,6 +154,7 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         onStatus(if (mode == Mode.FULL_DUPLEX) "Mic off" else "Listening")
     }
 
+    /** Full-duplex mic toggle. */
     fun toggleTalking() = if (talking) stopTalking() else startTalking()
 
     /** Stamps and sends one of our own frames on every transport. */
@@ -151,13 +165,16 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         for (t in transports) t.send(packet)
     }
 
+    /** Receive path for every transport: dedupe, relay within the hop budget, then decode and play. */
     private fun onPacket(p: ByteArray, from: Transport, link: Any?) {
         val h = Packet.parse(p) ?: return
         if (h.senderId == senderId) return
         if (!markSeen(h.senderId, h.seq)) return          // duplicate via another path
 
-        if (relay && h.ttl > 1) {
-            Packet.decrementTtl(p)
+        // A peer's ttl is capped at our own budget, so nobody can stamp 255 and ride further than we allow.
+        val ttl = minOf(h.ttl, maxHops)
+        if (relay && ttl > 1) {
+            Packet.setTtl(p, ttl - 1)
             for (t in transports) {
                 if (t === from) { if (t.relayWithin) t.send(p, except = link) }
                 else t.send(p)
@@ -173,11 +190,13 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         }
     }
 
+    /** Feeds one Opus packet to the sender's decoder and plays whatever frames come out. */
     private fun decodeOpus(sender: Int, p: ByteArray) {
         if (undecodable.contains(sender)) return
-        val dec = decoders[sender] ?: try {
-            decoders.computeIfAbsent(sender) { OpusDecoder() }   // atomic: never two codecs for one sender
+        val dec = try {
+            decoderFor(sender) ?: return                     // over capacity and everyone is talking: drop
         } catch (e: Exception) {
+            if (undecodable.size >= MAX_UNDECODABLE) undecodable.clear()
             undecodable.add(sender)
             onStatus("Opus decoder unavailable, can't play ${sender.toUInt().toString(16)}")
             return
@@ -195,6 +214,25 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         }
     }
 
+    /**
+     * The sender's decoder, created on demand. Decoders are a bounded resource (each is a
+     * MediaCodec), so at most [MAX_DECODERS] exist; a new sender beyond that evicts the
+     * quietest one if it has paused, and is dropped if every slot is actively talking.
+     */
+    private fun decoderFor(sender: Int): OpusDecoder? {
+        decoders[sender]?.let { return it }
+        if (decoders.size >= MAX_DECODERS && !evictQuietest()) return null
+        return decoders.computeIfAbsent(sender) { OpusDecoder() }   // atomic: never two codecs for one sender
+    }
+
+    /** Releases the decoder that has been quiet longest, if it has paused at all. */
+    private fun evictQuietest(): Boolean {
+        val (sender, dec) = decoders.entries.minByOrNull { it.value.lastUsedNs } ?: return false
+        if (System.nanoTime() - dec.lastUsedNs < EVICT_IDLE_NS) return false
+        if (decoders.remove(sender, dec)) synchronized(dec) { dec.release() }
+        return true
+    }
+
     /** Releases decoders of senders that have been silent for a while; they are recreated on demand. */
     private fun pruneDecoders() {
         val now = System.nanoTime()
@@ -205,6 +243,7 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
         }
     }
 
+    /** Drops every decoder and the failed-sender list, on disconnect. */
     private fun releaseDecoders() {
         for (dec in decoders.values) synchronized(dec) { dec.release() }
         decoders.clear()
@@ -213,5 +252,8 @@ class PttEngine(context: Context, private val onStatus: (String) -> Unit) {
 
     private companion object {
         const val DECODER_IDLE_NS = 30_000_000_000L
+        const val EVICT_IDLE_NS = 2_000_000_000L
+        const val MAX_DECODERS = 8            // a crew, not a crowd; each one is a MediaCodec instance
+        const val MAX_UNDECODABLE = 64
     }
 }
