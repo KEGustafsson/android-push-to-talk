@@ -32,6 +32,10 @@
             app:defaultValue="both"
             app:dialogTitle="Which buttons key the mic"
             app:useSimpleSummaryProvider="true" />
+        <Preference
+            app:key="hw_button_help"
+            app:selectable="false"
+            app:summary="Press once: mic on, one tone in the ear. Press again: mic off, two tones. Holding a headset button talks for as long as you hold it. A volume key works the same, press for press." />
         <ListPreference
             app:key="audio_route"
             app:title="Audio output"
@@ -40,6 +44,11 @@
             app:defaultValue="auto"
             app:dialogTitle="Where the voice goes"
             app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:key="headset_call"
+            app:title="Headset button hangs up"
+            app:defaultValue="false"
+            app:summary="Only if a Bluetooth headset's button does nothing here: some headsets send a hang-up instead of a media key. This registers the channel with the phone as a call while such a headset is in use, so the hang-up becomes the talk key. It shows on car kits as a call, and a phone call puts the channel on hold." />
         <SwitchPreferenceCompat
             app:key="keep_screen_on"
             app:title="Keep screen on"

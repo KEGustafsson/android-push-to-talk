@@ -67,6 +67,8 @@ class Prefs(context: Context) {
     val keepScreenOn: Boolean get() = sp.getBoolean(KEY_KEEP_SCREEN_ON, true)
     /** Headset when one is connected (auto) or always the loudspeaker. */
     val speakerOnly: Boolean get() = sp.getString(KEY_AUDIO_ROUTE, ROUTE_AUTO) == ROUTE_SPEAKER
+    /** Register the session as a call while a Bluetooth headset is in use; for headsets whose button hangs up. */
+    val headsetAsCall: Boolean get() = sp.getBoolean(KEY_HEADSET_CALL, false)
     val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
     val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
 
@@ -91,6 +93,7 @@ class Prefs(context: Context) {
         const val HW_BOTH = "both"
         const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
         const val KEY_AUDIO_ROUTE = "audio_route"
+        const val KEY_HEADSET_CALL = "headset_call"
         const val ROUTE_AUTO = "auto"
         const val ROUTE_SPEAKER = "speaker"
         const val KEY_FULL_DUPLEX = "full_duplex"

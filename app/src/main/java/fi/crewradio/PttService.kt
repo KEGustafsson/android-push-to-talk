@@ -16,6 +16,7 @@ import android.net.wifi.WifiManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
+import fi.crewradio.audio.Tones
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -166,7 +167,10 @@ class PttService : Service() {
                         else -> false
                     }
                     if (!ours) return false
-                    if (ev.action == KeyEvent.ACTION_DOWN && ev.repeatCount == 0) hardwareToggle()
+                    when (ev.action) {
+                        KeyEvent.ACTION_DOWN -> if (ev.repeatCount == 0) headsetPress()
+                        KeyEvent.ACTION_UP -> headsetRelease()
+                    }
                     return true
                 }
             })
@@ -179,10 +183,12 @@ class PttService : Service() {
             mediaSession = s
         }
         headsetButtons = headset
+        // A Bluetooth headset's button comes through Telecom as one press, no release: a plain toggle.
+        engine.onTalkKey = { if (headsetButtons) synchronized(hardwareLock) { setMic(!engine.isTalking) } }
         if (volume) {
             session.setPlaybackToRemote(object : VolumeProvider(VOLUME_CONTROL_RELATIVE, 100, 50) {
                 override fun onAdjustVolume(direction: Int) {
-                    if (direction != 0) hardwareToggle()          // 0 is the system re-reading the level
+                    if (direction != 0) volumePress()             // 0 is the system re-reading the level
                 }
             })
         } else {
@@ -193,32 +199,65 @@ class PttService : Service() {
     }
 
     private fun stopHardwareButtons() {
+        engine.onTalkKey = null
         mediaSession?.let { it.isActive = false; it.release() }
         mediaSession = null
     }
 
     @Volatile private var headsetButtons = false
     private val hardwareLock = Any()
-    private var lastHardwareEventMs = 0L
+    private var lastVolumeEventMs = 0L
+    private var headsetDownMs = 0L
+    private var headsetKeyed = false
 
     /**
-     * One physical press = mic on, the next = mic off, with a buzz either way. A held volume
-     * key autorepeats, so every event stamps the clock and only a press after a quiet
-     * [PRESS_GAP_MS] counts: a hold is one press, however long.
+     * Headset or media button, which reports press and release separately. A press keys the
+     * mic if it is off, or un-keys it if it is on; a release after a real hold ([HOLD_MS])
+     * un-keys it again, so the button works as push-to-talk on headsets that hold, and as a
+     * toggle on those that only click. No debounce: the events are clean already.
      */
-    private fun hardwareToggle() {
+    private fun headsetPress() {
         val now = android.os.SystemClock.elapsedRealtime()
         synchronized(hardwareLock) {
-            val quiet = now - lastHardwareEventMs >= PRESS_GAP_MS
-            lastHardwareEventMs = now
-            if (!quiet) return
-            val wasTalking = engine.isTalking
-            engine.toggleTalking()
-            val on = engine.isTalking
-            if (!wasTalking && !on) return                // mic failed to start: the engine has reported why
-            buzz(if (on) longArrayOf(0, 40) else longArrayOf(0, 30, 80, 30))
-            onStatus(if (on) "Talk key: mic on" else "Talk key: mic off")   // also refreshes the disc on screen
+            if (now - headsetDownMs < BOUNCE_MS) return
+            headsetDownMs = now
+            headsetKeyed = !engine.isTalking
+            setMic(headsetKeyed)
         }
+    }
+
+    private fun headsetRelease() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        synchronized(hardwareLock) {
+            if (headsetKeyed && engine.isTalking && now - headsetDownMs >= HOLD_MS) setMic(false)
+            headsetKeyed = false
+        }
+    }
+
+    /**
+     * Volume key through the remote volume provider, which reports adjustments only, no
+     * release, and autorepeats while held. Every event stamps the clock and only one after
+     * a quiet [PRESS_GAP_MS] counts, so a hold is one press: mic on, and the next press off.
+     */
+    private fun volumePress() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        synchronized(hardwareLock) {
+            val quiet = now - lastVolumeEventMs >= PRESS_GAP_MS
+            lastVolumeEventMs = now
+            if (!quiet) return
+            setMic(!engine.isTalking)
+        }
+    }
+
+    /** Keys or un-keys the mic from a hardware key: a buzz on the phone, a cue in the ear, a status line. */
+    private fun setMic(on: Boolean) {
+        if (on == engine.isTalking) return
+        if (on) engine.startTalking() else engine.stopTalking()
+        val now = engine.isTalking
+        if (on && !now) return                            // mic failed to start: the engine has reported why
+        buzz(if (now) longArrayOf(0, 40) else longArrayOf(0, 30, 80, 30))
+        engine.cue(if (now) Tones.micOn() else Tones.micOff())
+        onStatus(if (now) "Talk key: mic on" else "Talk key: mic off")   // also refreshes the disc on screen
     }
 
     private fun buzz(pattern: LongArray) {
@@ -336,6 +375,10 @@ class PttService : Service() {
          * ms, so anything within that timeout plus a margin is the same press still held.
          */
         private val PRESS_GAP_MS = android.view.ViewConfiguration.getKeyRepeatTimeout() + 150L
+        /** A headset press held at least this long is push-to-talk: its release un-keys the mic. */
+        private const val HOLD_MS = 400L
+        /** Two headset presses closer than this are contact bounce, not two presses. */
+        private const val BOUNCE_MS = 120L
         const val ACTION_DISCONNECT = "fi.crewradio.action.DISCONNECT"
         private const val CHANNEL_ID = "ptt"
         private const val NOTIFICATION_ID = 1

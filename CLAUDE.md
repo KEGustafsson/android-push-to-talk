@@ -68,9 +68,25 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   (`setCommunicationDevice` on API 31+, `startBluetoothSco`/`isSpeakerphoneOn` below). It
   re-applies on every `AudioDeviceCallback` event and on a policy change; setting `audio_route`
   (auto | speaker) is pushed into the engine with the other live settings.
+- Bluetooth headsets: measured on a Jabra Evolve2 65 + S25. With SCO up and no call, a tap is
+  an AVRCP PLAY that reaches our `MediaSession` (good); the headset sometimes sends AT+CHUP
+  (hang-up) instead, and with no call to hang up Android drops the SCO link and does not
+  re-open it, so `AudioRoute` watches the communication device (API 31+) / SCO state
+  (below) and re-applies the route 700 ms later. While *any* Telecom call exists Android
+  refuses AVRCP media keys system-wide ("Only the system can dispatch media key event to the
+  global priority session"), so a self-managed call is NOT the default. It is the opt-in
+  setting `headset_call` (`PttEngine.headsetAsCall`), for headsets whose button only hangs
+  up: then `CallService` + `CallBridge` (`MANAGE_OWN_CALLS`) place a self-managed call while a
+  Bluetooth headset is the route, Telecom routes the audio (`AudioRoute.passive`), the hang-up
+  lands in `ChannelConnection.onDisconnect` as a talk toggle (`onAbort` really ends it), and a
+  phone call holds the channel (mic off, mixer muted) until `onUnhold`.
 - Hardware talk button: `PttService` holds a `MediaSession` while on channel; headset/media
   buttons arrive as media button events, the volume keys through a remote `VolumeProvider`
-  (the only way to get them with the screen off). Both toggle the mic. Setting `hw_button`.
+  (the only way to get them with the screen off). Headset presses carry press and release, so
+  they need no debounce: a press toggles, a release after a 400 ms hold un-keys (push-to-talk).
+  The volume provider reports adjustments only and autorepeats, so a quiet gap of the platform
+  key-repeat timeout makes a hold one press. Every hardware key change plays `audio/Tones`
+  through the mixer's cue queue, on top of whatever is sounding. Setting `hw_button`.
 - `PttEngine.onPacket`: dedupe by (senderId, seq) seen-cache, relay to other
   transports/links if `relay` is on and ttl > 1 (ttl clamped to our own `maxHops`, then
   decremented in place), then decode and play unless half-duplex and transmitting. Opus

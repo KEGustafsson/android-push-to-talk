@@ -76,7 +76,7 @@ class Stats(
  * fires only when the list actually changes.
  */
 class PttEngine(
-    context: Context,
+    private val context: Context,
     private val onStatus: (String) -> Unit,
     private val onRoster: (List<Peer>) -> Unit = {}
 ) {
@@ -115,10 +115,63 @@ class PttEngine(
     val activeTransports: List<String> get() = transports.map { it.name }
 
     private val route = AudioRoute(context, onStatus)
+
+    /** A hardware talk key that reaches the engine through Telecom (a Bluetooth headset's button). Set by the service. */
+    @Volatile var onTalkKey: (() -> Unit)? = null
+    @Volatile private var held = false
+
+    /**
+     * Telecom's view of the session, only while a Bluetooth headset is the route: [AudioRoute]
+     * asks for the call when such a headset appears and ends it when it goes; while the call
+     * lasts Telecom routes the audio and the headset button arrives as [CallBridge.Listener.onHeadsetButton].
+     */
+    private val callListener = object : CallBridge.Listener {
+        override fun onCallActive() { route.passive = true }
+        override fun onCallEnded(reason: String?) {
+            route.passive = false
+            if (reason != null) onStatus(reason)
+            if (isConnected) route.reapply()
+        }
+        override fun onHeadsetButton() { onTalkKey?.invoke() }
+        override fun onHold(held: Boolean) {
+            this@PttEngine.held = held
+            if (held) stopTalking()
+            mixer.muted = held
+            onStatus(if (held) "On hold: phone call" else "Back on channel")
+        }
+        override fun onAudioRoute(label: String) {
+            if (label != route.current) { route.current = label; onStatus("Audio: $label") }
+        }
+    }
+
+    /**
+     * Register the session as a call while a Bluetooth headset is in use (setting `headset_call`).
+     * Off by default: headsets differ in what their button sends, and a call makes Android drop
+     * the media keys some of them send. On, for headsets that send a hang-up instead.
+     */
+    @Volatile var headsetAsCall = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (isConnected && route.bluetoothHeadset) syncCall(true)
+        }
+
+    init {
+        route.onBluetoothHeadset = { present -> syncCall(present) }
+    }
+
+    private fun syncCall(bluetoothPresent: Boolean) {
+        if (bluetoothPresent && headsetAsCall && isConnected) {
+            if (!CallBridge.start(context)) {
+                route.passive = false      // Telecom would not take it (a phone call, or no telecom); route ourselves
+                route.reapply()
+            }
+        } else CallBridge.stop()
+    }
     /** Headset when connected (default) or always the speaker; applies immediately. */
     var audioRoute: AudioRoute.Policy
         get() = route.policy
-        set(value) { route.policy = value }
+        set(value) { route.policy = value; CallBridge.speakerOnly = value == AudioRoute.Policy.SPEAKER }
     /** Where the voice is going right now, for the Status screen. */
     val audioRouteNow: String get() = route.current
     private val mixer = Mixer()
@@ -182,6 +235,7 @@ class PttEngine(
     fun connect(list: List<Transport>) {
         disconnect()
         counters = Counters()
+        CallBridge.listener = callListener
         route.start()
         mixer.start()
         for (t in list) {
@@ -215,13 +269,17 @@ class PttEngine(
         seqTracker.clear()
         publishRoster()
         route.stop()
+        CallBridge.stop()
+        CallBridge.listener = null
+        mixer.muted = false
+        held = false
     }
 
     fun stats(): Stats = counters.snapshot(mixer.concealedFrames.get())
 
     /** Keys the mic: opens the encoder (if Opus) and the capture; on failure everything is released again. */
     fun startTalking() {
-        if (talking || transports.isEmpty()) return
+        if (talking || transports.isEmpty() || held) return
         talking = true
         encoder = if (codec == Packet.Codec.OPUS) {
             try {
@@ -273,6 +331,9 @@ class PttEngine(
 
     /** Full-duplex mic toggle. */
     fun toggleTalking() = if (talking) stopTalking() else startTalking()
+
+    /** Plays a short cue (see [fi.crewradio.audio.Tones]) in the ear, or the speaker; nothing when not on channel. */
+    fun cue(frames: List<ByteArray>) = mixer.cue(frames)
 
     /** Stamps and sends one of our own packets on every transport. */
     private fun broadcast(codec: Packet.Codec, payload: ByteArray) {

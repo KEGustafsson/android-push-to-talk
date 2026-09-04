@@ -34,7 +34,16 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    ways over its hands-free (SCO) link as soon as it is connected, a wired or USB headset when
    plugged in, and the speakerphone otherwise; it follows the headset as it comes and goes
    while on channel, with an "Audio: ..." status line on each change. Choose "Always the
-   speaker" to ignore headsets. The headset's own button keys the mic (see Talk button).
+   speaker" to ignore headsets. A hands-free headset's button is a media key to the app
+   (press = talk on/off, see Talk button); if the headset instead treats the press as a
+   hang-up, the phone drops the headset's audio link for a moment and the app re-opens it
+   (a second of silence). For headsets whose button only ever hangs up, turn on Settings >
+   Talking > "Headset button hangs up": the channel is then registered with the phone as an
+   ongoing (self-managed) call while such a headset is in use, so the hang-up becomes the
+   talk key. That shows on a car kit as a call, and an incoming phone call puts the channel
+   on hold, muted both ways, until you hang up ("On hold: phone call" / "Back on channel").
+   Note that in that mode the phone drops any media key the headset sends, so use it only
+   for headsets that do not send one.
 6. **Screen off / background**: while connected the app runs as a foreground
    service with a wake lock and a Wi‑Fi lock, so you keep hearing the crew with
    the screen off or another app in front. The ongoing notification shows the
@@ -80,10 +89,12 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
    Bluetooth peer - and remembers them, so a normal day is open the app, flip the channel
    switch on.
 13. **Talk button** (Settings > Talking): while on the channel, a headset or media button and
-   the volume keys toggle the mic - press to talk, press again to stop - with a short buzz on,
-   a double buzz off. Works with the screen off, which is the point; turn off Keep screen on in
-   the same section and the phone can live in a pocket. Volume keys do nothing else while on
-   channel. Defaults to both; set to Off to get the volume keys back.
+   the volume keys key the mic. Press once: mic on, one tone in the ear (or the speaker) and a
+   short buzz. Press again: mic off, two tones and a double buzz. Holding a headset button
+   talks for as long as you hold it, like a radio, on headsets that report the release; a
+   Bluetooth headset that only clicks toggles. Works with the screen off, which is the point;
+   turn off Keep screen on in the same section and the phone can live in a pocket. Volume keys
+   do nothing else while on channel. Defaults to both; set to Off to get the volume keys back.
 14. **Packet loss**: a missed 20 ms frame is filled with a fading repeat of the previous one
    (up to three in a row, then silence) instead of a click of silence, for Opus and PCM alike.
    The Status screen counts concealed frames, which is a good measure of how a link is doing.
@@ -101,6 +112,7 @@ two or more phones. Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
 - `audio/OpusEncoder`, `audio/OpusDecoder` — MediaCodec `audio/opus`, one decoder per sender
 - `audio/Decimator` — 48 kHz decoder output back down to 16 kHz
 - `audio/Conceal` — packet-loss concealment: the last frame, fading, for up to three missing slots
+- `audio/Tones` — the cue tones a talk key plays in the ear, as mixer frames
 - `transport/LanTransport` — UDP multicast + subnet broadcast
 - `transport/BluetoothTransport` — RFCOMM, server + client
 - `transport/WifiAwareTransport` — NAN publish/subscribe, TCP data paths, lower‑id‑initiates tie‑break
