@@ -120,13 +120,22 @@ class PttEngine(
     private val undecodable = ConcurrentHashMap.newKeySet<Int>()   // senders whose decoder failed; reported once
     private val packetCount = AtomicInteger()
     private val seq = AtomicInteger()                                // shared by the audio thread and the heartbeat
-    private val rxPackets = AtomicLong()
-    private val rxBytes = AtomicLong()
-    private val txPackets = AtomicLong()
-    private val txBytes = AtomicLong()
-    private val relayed = AtomicLong()
-    private val duplicates = AtomicLong()
-    private val hellos = AtomicLong()
+    /**
+     * Packet counters for one session. connect() starts a fresh set; a callback from a
+     * transport that was still winding down keeps incrementing the old set, which nothing
+     * reads any more - so the counters can never be reset underneath a running callback.
+     */
+    private class Counters {
+        val rxPackets = AtomicLong()
+        val rxBytes = AtomicLong()
+        val txPackets = AtomicLong()
+        val txBytes = AtomicLong()
+        val relayed = AtomicLong()
+        val duplicates = AtomicLong()
+        val hellos = AtomicLong()
+        fun snapshot() = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get())
+    }
+    @Volatile private var counters = Counters()
     @Volatile private var talking = false
 
     private val nodes = ConcurrentHashMap<Int, Node>()
@@ -159,6 +168,7 @@ class PttEngine(
     /** Starts playback and the given transports; any transport that fails to start is reported and dropped. */
     fun connect(list: List<Transport>) {
         disconnect()
+        counters = Counters()
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
         audioManager.isSpeakerphoneOn = true
         mixer.start()
@@ -190,11 +200,10 @@ class PttEngine(
         synchronized(seen) { seen.clear() }
         nodes.clear()
         publishRoster()
-        for (c in listOf(rxPackets, rxBytes, txPackets, txBytes, relayed, duplicates, hellos)) c.set(0)
         audioManager.mode = AudioManager.MODE_NORMAL
     }
 
-    fun stats() = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get())
+    fun stats(): Stats = counters.snapshot()
 
     /** Keys the mic: opens the encoder (if Opus) and the capture; on failure everything is released again. */
     fun startTalking() {
@@ -256,19 +265,21 @@ class PttEngine(
         val s = seq.getAndIncrement()
         markSeen(senderId, s)
         val packet = Packet.encode(senderId, s, codec, maxHops, payload)
-        txPackets.incrementAndGet()
-        txBytes.addAndGet(packet.size.toLong())
+        val c = counters
+        c.txPackets.incrementAndGet()
+        c.txBytes.addAndGet(packet.size.toLong())
         for (t in transports) t.send(packet)
     }
 
     /** Receive path for every transport: dedupe, relay within the hop budget, then roster, then decode and play. */
     private fun onPacket(p: ByteArray, from: Transport, link: Any?) {
         if (transports.isEmpty()) return                  // a transport still winding down after disconnect
+        val c = counters                                  // this session's set, whatever happens meanwhile
         val h = Packet.parse(p) ?: return
         if (h.senderId == senderId) return
-        if (!markSeen(h.senderId, h.seq)) { duplicates.incrementAndGet(); return }   // duplicate via another path
-        rxPackets.incrementAndGet()
-        rxBytes.addAndGet(p.size.toLong())
+        if (!markSeen(h.senderId, h.seq)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
+        c.rxPackets.incrementAndGet()
+        c.rxBytes.addAndGet(p.size.toLong())
 
         // A peer's ttl is capped at our own budget, so nobody can stamp 255 and ride further than we allow.
         val ttl = minOf(h.ttl, maxHops)
@@ -279,11 +290,11 @@ class PttEngine(
                 if (t === from) { if (t.relayWithin) { t.send(p, except = link); forwarded = true } }
                 else { t.send(p); forwarded = true }
             }
-            if (forwarded) relayed.incrementAndGet()
+            if (forwarded) c.relayed.incrementAndGet()
         }
 
         if (h.codec == Packet.Codec.HELLO) {
-            hellos.incrementAndGet()
+            c.hellos.incrementAndGet()
             Hello.decode(p, Packet.HEADER, p.size - Packet.HEADER)?.let { heardHello(h.senderId, it, from, h.ttl) }
             return
         }
