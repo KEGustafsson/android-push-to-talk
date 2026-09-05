@@ -163,8 +163,8 @@ repeat of the previous one rather than a click. The developer notes in
 
 ## Build it yourself
 
-Open the folder in Android Studio (Otter or newer, for Android Gradle Plugin 8.13) and build, or
-run `./gradlew assembleDebug` with an Android SDK (platform 36). Pure-Kotlin unit tests:
+Open the folder in Android Studio (a release that supports Android Gradle Plugin 9.4) and build, or
+run `./gradlew assembleDebug` with an Android SDK (platform 37). Pure-Kotlin unit tests:
 `./gradlew testDebugUnitTest`.
 Real testing needs two or more phones; the emulator has neither Bluetooth nor Wi‑Fi Aware.
 

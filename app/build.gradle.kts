@@ -1,8 +1,7 @@
 import java.time.Instant
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    id("com.android.application")      // brings the Kotlin compiler with it (AGP built-in Kotlin)
 }
 
 /** Output of a git command run in the repository, or empty when git is unavailable (a source download, say). */
@@ -36,7 +35,7 @@ if (hasReleaseKey && git("rev-parse", "--is-shallow-repository") == "true") {
 
 android {
     namespace = "fi.crewradio"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "fi.crewradio"
         minSdk = 29
@@ -64,12 +63,8 @@ android {
     buildFeatures { buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17      // built-in Kotlin takes its jvmTarget from this
     }
-}
-
-kotlin {
-    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 }
 
 /**
@@ -114,8 +109,8 @@ tasks.register("printVersion") {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.17.0")
-    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.core:core-ktx:1.19.0")
+    implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("androidx.constraintlayout:constraintlayout:2.2.2")
