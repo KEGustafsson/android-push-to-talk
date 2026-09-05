@@ -125,6 +125,10 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Wi-Fi Aware: every node publishes and subscribes; lower senderId initiates the
   data path (one link per pair). Publisher uses accept-any on API 31+.
 
+## Licence
+- EUPL-1.2 (`LICENSE`, SPDX `EUPL-1.2`), declared in the README and in the SBOM's metadata. Keep
+  the licence when adding files; the AndroidX/Material dependencies are Apache-2.0, compatible.
+
 ## Security hygiene
 - `SECURITY.md` (disclosure route: GitHub private vulnerability reporting, enabled) and
   `docs/SECURITY.md` (threat model, CRA Annex I mapping). Keep both current when the wire format

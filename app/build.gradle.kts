@@ -98,7 +98,7 @@ tasks.register("sbom") {
   "version": 1,
   "metadata": {
     "timestamp": "${Instant.now()}",
-    "component": {"type": "application", "name": "CrewRadio", "version": "$version", "bom-ref": "pkg:generic/CrewRadio@$version"}
+    "component": {"type": "application", "name": "CrewRadio", "version": "$version", "bom-ref": "pkg:generic/CrewRadio@$version", "licenses": [{"license": {"id": "EUPL-1.2"}}]}
   },
   "components": [
 $comps
