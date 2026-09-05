@@ -2,7 +2,9 @@
 description, so they can be re-made after a change without hand-editing XML. Export to PNG
 with draw.io desktop:
 
-    "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 2 -b 20 -o docs/images/<name>.png docs/diagrams/<name>.drawio
+    "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 1.5 -b 16 -o docs/images/<name>.png docs/diagrams/<name>.drawio
+
+(scale 1 for the screen mock-ups, 1.5 for the flowcharts; the markdown gives each image a display width)
 
 Run:  python docs/diagrams/make_diagrams.py
 

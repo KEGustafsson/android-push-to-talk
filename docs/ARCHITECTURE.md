@@ -5,7 +5,7 @@ the people who change it. Everything here is about the `app` module, package `fi
 
 ## In one picture
 
-![What runs where](images/architecture.png)
+<img src="images/architecture.png" alt="What runs where" width="760">
 
 - **`MainActivity`** is the one screen that matters while talking: channel name, head count,
   transport tiles, the peer row (Bluetooth only), the channel switch and the talk disc. It binds
@@ -56,7 +56,7 @@ echo cancellation and noise suppression), the AOSP Opus codec through `MediaCode
 Codec 0 is a PCM16 frame, 1 an Opus packet, 2 a `Hello` (roster heartbeat: name, transport
 flags, hop budget). Audio frames and hellos number themselves independently per sender.
 
-![What happens to a received packet](images/packet-flow.png)
+<img src="images/packet-flow.png" alt="What happens to a received packet" width="640">
 
 Relay is application-level flooding with two brakes: a seen-cache keyed by (sender, number),
 one cache per packet kind because audio and hellos number themselves independently, drops
@@ -67,7 +67,7 @@ same transport. `LanTransport` sends every frame twice, to the multicast group a
 interface's broadcast address, because plenty of access points filter multicast; the
 seen-cache drops the duplicate on the receiving side.
 
-![Three phones, two kinds of link](images/mesh.png)
+<img src="images/mesh.png" alt="Three phones, two kinds of link" width="640">
 
 The roster: a heartbeat thread sends a hello every second; every hello or audio packet refreshes
 the sender's entry (name, transports, via which transport, hops, talking). Silent for four
@@ -85,7 +85,7 @@ app.
 
 ## Keying the mic
 
-![How the mic gets keyed](images/talk-keys.png)
+<img src="images/talk-keys.png" alt="How the mic gets keyed" width="700">
 
 - The on-screen disc: hold in half duplex, tap to toggle in full duplex.
 - `PttService` holds a `MediaSession` while on channel. Headset and media buttons arrive as
@@ -108,7 +108,7 @@ app.
   a self-managed Telecom call while a Bluetooth headset is the route, so the hang-up lands in
   `ChannelConnection.onDisconnect` as a talk toggle.
 
-![Where the sound goes](images/audio-route.png)
+<img src="images/audio-route.png" alt="Where the sound goes" width="700">
 
 ## Settings
 

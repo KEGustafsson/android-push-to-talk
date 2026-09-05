@@ -9,7 +9,7 @@ Bluetooth — all at the same time, and every phone repeats what it hears to the
 reach, so the crew stays connected as long as there is *some* path between them. No server,
 no account, no internet, no subscription. Connecting people, with what is in their pockets.
 
-![One app, every link](docs/images/links.png)
+<img src="docs/images/links.png" alt="One app, every link" width="640">
 
 ## What it does
 
@@ -24,7 +24,7 @@ no account, no internet, no subscription. Connecting people, with what is in the
 - **Shows the crew.** Who is on the channel, who is talking, how each one is reached.
 - **Nothing to set up.** Install the same app on each phone, join the channel, talk.
 
-![The screens](docs/images/screens.png)
+<img src="docs/images/screens.png" alt="The screens: off the channel, on the channel, talking" width="720">
 
 ## Install
 
@@ -53,7 +53,7 @@ no account, no internet, no subscription. Connecting people, with what is in the
 5. **Leave.** Tap the switch row again, or *Disconnect* in the notification. Closing the app's
    window does not leave the channel; that is on purpose, so it survives in a pocket.
 
-![Main screen](docs/images/screen-main.png) ![On air](docs/images/screen-on-air.png)
+<img src="docs/images/screen-main.png" alt="Main screen" width="220"> <img src="docs/images/screen-on-air.png" alt="On air" width="220">
 
 ## Talking without touching the screen
 
@@ -67,7 +67,7 @@ while you are on the channel; pick them under **Settings › Talking**.
 | **Your voice** | Just speak. | *Voice keys the mic* (Settings › Talking). With a Bluetooth headset: on air within 40 ms of speaking, off 1.5 s after you stop, silent while the headset is muted. On the phone itself it is always on while the phone is at your ear (see below). |
 | **Phone at your ear** | Lift the phone to your ear like a call and speak. | The sound moves to the earpiece, the screen goes dark so your cheek cannot press anything, and your voice keys the mic. Put it down and it is a loudspeaker with a button again. |
 
-![How the mic gets keyed](docs/images/talk-keys.png)
+<img src="docs/images/talk-keys.png" alt="How the mic gets keyed" width="640">
 
 Feedback either way: the disc turns red, the phone gives a short buzz when the mic keys and a
 double buzz when it un-keys, and *Talk key tones* (off by default) adds one tone in the ear on,
@@ -80,7 +80,7 @@ wired or USB headset when plugged in. Otherwise the loudspeaker, or the earpiece
 phone is at your ear. **Settings › Talking › Audio output** can pin it to the loudspeaker
 (headsets and the ear ignored) or to the earpiece.
 
-![Where the sound goes](docs/images/audio-route.png)
+<img src="docs/images/audio-route.png" alt="Where the sound goes" width="640">
 
 Half duplex on a loudspeaker works well; **full duplex** (everyone heard at once) is far better
 with a headset, because a loudspeaker feeds back into the microphone.
@@ -93,7 +93,7 @@ they were last heard; this phone's name, mode, codec, where the audio goes and t
 the phone's addresses; packet counters (received, sent, relayed, duplicates dropped, concealed,
 hellos); and the last forty status lines with time stamps.
 
-![Status screen](docs/images/screen-status.png) ![Settings](docs/images/screen-settings.png)
+<img src="docs/images/screen-status.png" alt="Status screen" width="220"> <img src="docs/images/screen-settings.png" alt="Settings" width="220">
 
 ## Settings
 
@@ -125,7 +125,7 @@ the hop count stops anything circulating forever. Once a second every phone send
 which is how the crew list knows who is there and how they are reached; four missed hellos and a
 phone drops off the list.
 
-![Three phones, two kinds of link](docs/images/mesh.png)
+<img src="docs/images/mesh.png" alt="Three phones, two kinds of link" width="640">
 
 Links look after themselves: a Bluetooth peer that walks out of range is redialled with a
 growing delay, a Wi‑Fi Aware peer is picked up again as soon as it reappears, and when Wi‑Fi
