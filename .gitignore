@@ -20,3 +20,6 @@ captures/
 *.keystore
 *.jks
 keystore.properties
+
+# Signal K plugin (sk-plugin/) has no dependencies; anything installed for experiments stays local
+sk-plugin/node_modules/

@@ -139,6 +139,23 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Wi-Fi Aware: every node publishes and subscribes; lower senderId initiates the
   data path (one link per pair). Publisher uses accept-any on API 31+.
 
+## Signal K plugin (`sk-plugin/`)
+- `signalk-crewradio`: the boat's Signal K server as a node on the channel. Pure Node 24+, no
+  runtime dependencies, CommonJS, tests with `node --test` (CI job `plugin`). `lib/packet.js`,
+  `lib/crypto.js` and `lib/node.js` mirror `Packet.kt`, `ChannelCrypto.kt`, `Hello.kt` and the
+  engine's roster rules byte for byte; `sk-plugin/test/vector.json` and the app's
+  `CrossLanguageVectorTest` check the same packet, so change both when the wire changes.
+- It is a speaker-only Wyoming satellite for `signalk-wyoming` (`lib/wyoming.js`: describe/info,
+  ping/pong, pause-satellite, audio-start/chunk/stop, then `played`): signalk-wyoming does the
+  text-to-speech (Piper, 22 050 Hz) and the announcement queue with its `urgent` priority; the
+  plugin resamples to 16 kHz (`lib/resample.js`), prefixes a chime, waits for a gap in the talk
+  and keys the channel with PCM frames paced at 20 ms. `lib/bridge.js` announces Signal K
+  notifications through signalk-wyoming's in-process `say()` (PropertyValues
+  `signalk-wyoming.api`), urgent for `emergency`, repeated until cleared. Roster goes to
+  `communication.crewradio.*`.
+- Phase 2 (app changes, same wire version): an urgent announcement should play through a
+  half-duplex phone that is transmitting; acknowledgement from a phone.
+
 ## Licence
 - EUPL-1.2 (`LICENSE`, SPDX `EUPL-1.2`), declared in the README and in the SBOM's metadata. Keep
   the licence when adding files; the AndroidX/Material dependencies are Apache-2.0, compatible.
