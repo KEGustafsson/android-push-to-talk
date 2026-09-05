@@ -47,6 +47,8 @@ class Stats(
     val rxPackets: Long, val rxBytes: Long,
     val txPackets: Long, val txBytes: Long,
     val relayed: Long, val duplicates: Long, val hellos: Long,
+    /** Packets dropped because a sender exceeded its rate budget or failed validation. */
+    val rejected: Long,
     /** 20 ms slots the mixer filled with a faded repeat because the packet never came. */
     val concealed: Long
 )
@@ -329,13 +331,15 @@ class PttEngine(
         val relayed = AtomicLong()
         val duplicates = AtomicLong()
         val hellos = AtomicLong()
-        fun snapshot(concealed: Long) = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get(), concealed)
+        val rejected = AtomicLong()
+        fun snapshot(concealed: Long) = Stats(rxPackets.get(), rxBytes.get(), txPackets.get(), txBytes.get(), relayed.get(), duplicates.get(), hellos.get(), rejected.get(), concealed)
     }
     @Volatile private var counters = Counters()
     @Volatile private var talking = false
 
     private val nodes = ConcurrentHashMap<Int, Node>()
     private val seqTracker = SeqTracker()                            // per sender audio sequence: gaps mean lost frames
+    private val rateLimiter = RateLimiter()                          // a sender beyond its budget is dropped before it costs anything
     private var heartbeat: ScheduledExecutorService? = null
     @Volatile private var lastRoster: List<Peer> = emptyList()
     private var lastRosterKey = ""
@@ -403,6 +407,7 @@ class PttEngine(
         synchronized(seenHellos) { seenHellos.clear() }
         nodes.clear()
         seqTracker.clear()
+        rateLimiter.clear()
         publishRoster()
         route.stop()
         CallBridge.stop()
@@ -494,8 +499,9 @@ class PttEngine(
     private fun onPacket(p: ByteArray, from: Transport, link: Any?) {
         if (transports.isEmpty()) return                  // a transport still winding down after disconnect
         val c = counters                                  // this session's set, whatever happens meanwhile
-        val h = Packet.parse(p) ?: return
+        val h = Packet.parse(p) ?: run { c.rejected.incrementAndGet(); return }
         if (h.senderId == senderId) return
+        if (!rateLimiter.allow(h.senderId, SystemClock.elapsedRealtime())) { c.rejected.incrementAndGet(); return }
         if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
         c.rxPackets.incrementAndGet()
         c.rxBytes.addAndGet(p.size.toLong())

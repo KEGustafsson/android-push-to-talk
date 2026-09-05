@@ -140,6 +140,11 @@ class StatusActivity : AppCompatActivity() {
                 "CONCEALED" to (st?.concealed ?: 0).toString(),
                 "HELLOS" to (st?.hellos ?: 0).toString()
             ))
+            rows.addView(tiles(
+                "REJECTED" to (st?.rejected ?: 0).toString(),
+                "" to "",
+                "" to ""
+            ))
         }
 
         // Log
