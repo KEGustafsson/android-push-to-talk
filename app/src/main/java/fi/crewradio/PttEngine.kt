@@ -516,17 +516,21 @@ class PttEngine(
         val c = counters                                  // this session's set, whatever happens meanwhile
         val h = Packet.parse(p) ?: run { c.rejected.incrementAndGet(); return }
         if (h.senderId == senderId) return
-        if (!rateLimiter.allow(h.senderId, SystemClock.elapsedRealtime())) { c.rejected.incrementAndGet(); return }
+        val now = SystemClock.elapsedRealtime()
+        if (!rateLimiter.allowGlobal(now)) { c.rejected.incrementAndGet(); return }
         // Authenticate before anything else: a packet without the crew's key must not reach the
-        // seen-cache (a forged sender+number would shadow the real packet), the relay or the roster.
+        // seen-cache (a forged sender+number would shadow the real packet), the relay, the roster,
+        // nor the sender's own rate budget (a forged sender id would starve the real one).
         val cr = crypto ?: return
         val plain = cr.open(Packet.aadOf(p), p, Packet.HEADER, p.size - Packet.HEADER) ?: run { c.rejected.incrementAndGet(); return }
+        if (!rateLimiter.allowSender(h.senderId, now)) { c.rejected.incrementAndGet(); return }
         if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
         c.rxPackets.incrementAndGet()
         c.rxBytes.addAndGet(p.size.toLong())
 
-        // A peer's ttl is capped at our own budget, so nobody can stamp 255 and ride further than we allow.
-        val ttl = minOf(h.ttl, maxHops)
+        // A peer's ttl is capped at our own budget and at the budget the sender signed into the
+        // packet, so nobody can stamp 255, nor bump a captured packet's ttl, and ride further.
+        val ttl = minOf(h.ttl, h.hops, maxHops)
         if (relay && ttl > 1) {
             Packet.setTtl(p, ttl - 1)
             var forwarded = false

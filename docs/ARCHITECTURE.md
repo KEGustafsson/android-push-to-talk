@@ -49,16 +49,18 @@ echo cancellation and noise suppression), the AOSP Opus codec through `MediaCode
 
 ## Packets and the mesh
 
-```
-'P' 'T' | version = 3 | codec | ttl | senderId int32 | seq int32 | nonce (12) | ciphertext | tag (16)
+```text
+'P' 'T' | version = 3 | codec | ttl | hops | senderId int32 | seq int32     (14-byte header)
+nonce (12) | ciphertext | tag (16)                                          (sealed payload)
 ```
 
 Codec 0 is a PCM16 frame, 1 an Opus packet, 2 a `Hello` (roster heartbeat: name, transport
 flags, hop budget). Audio frames and hellos number themselves independently per sender. The
 payload is sealed by `ChannelCrypto` (AES‑256‑GCM, random nonce per packet, key derived from
-the channel key by PBKDF2) with the header minus the ttl byte as associated data; the engine
-opens every packet before the seen-cache, the relay or the roster see it, so nothing without
-the crew's key gets anywhere. See [SECURITY.md](SECURITY.md) for the threat model.
+the channel key by PBKDF2) with the header minus the ttl byte as associated data; `hops` is the
+sender's original budget and is authenticated, so a relay clamps the ttl to it. The engine
+charges a global rate budget, opens every packet, then charges the sender's budget, before the
+seen-cache, the relay or the roster see it, so nothing without the crew's key gets anywhere. See [SECURITY.md](SECURITY.md) for the threat model.
 
 <img src="images/packet-flow.png" alt="What happens to a received packet" width="640">
 

@@ -18,7 +18,7 @@ recordings. The assets are the crew's conversation (confidentiality), the crew's
 | Eavesdropping on the conversation | Anyone on the same WLAN; Bluetooth or Aware only after joining the link | Every packet is encrypted with AES‑256‑GCM under a key derived from the crew's **channel key**. Bluetooth links are additionally link-encrypted (bonded RFCOMM), Aware links by their passphrase, which is the same channel key. |
 | Injecting audio, spoofing a crew member, feeding junk into the relay | Same | Every packet is authenticated (GCM tag over the payload and the header). A packet without the key fails the tag and is dropped before it reaches the relay, the roster or a decoder. |
 | Replaying captured packets | Same | Each packet carries a per-sender sequence number; the seen-cache drops repeats and the sequence tracker drops late packets. A replay after a rejoin would carry the old sender id and sequence and be dropped as seen or late. |
-| Flooding a phone or the mesh | Any peer with the key, or a bug | Per-sender rate limit (75 packets/s, burst 150) before any processing; a hop limit (default 4, clamped to the receiver's own) so nothing circulates; at most 64 roster entries, 8 decoders, bounded queues and caches; oversized packets (over 1024 bytes) dropped unread. |
+| Flooding a phone or the mesh | Any peer with the key, or a bug | A global ingress budget (400 packets/s, burst 800) before authentication and a per-sender budget (75/s, burst 150) after it, so a forged sender id can neither buy more nor starve a real sender; a hop limit (default 4, clamped to the receiver's own and to the sender's signed budget) so nothing circulates; at most 64 roster entries, 128 rate-limited senders, 8 decoders, bounded queues and caches; oversized packets (over 1024 bytes) dropped unread. |
 | Malformed packets crashing the app | Any peer | Fixed-size header validated first; hello payload decoded strictly (length, UTF‑8, control characters); audio only reaches the platform Opus decoder, itself hardened, and a decoder failure is contained to that sender. Transport threads catch everything and report instead of dying. |
 | A joined phone reading other phones' data | Crew member | There is nothing else to read: the wire carries voice and hellos (name, transports, hop budget). |
 | Someone with the key joining unnoticed | Anyone who learned the key | Not prevented: possession of the key is membership. The roster shows every member and where they arrive from; change the channel key to evict. |
@@ -36,16 +36,19 @@ recordings. The assets are the crew's conversation (confidentiality), the crew's
 
 ## The wire format
 
-```
-'P' 'T' | version = 3 | codec | ttl | senderId int32 | seq int32 | nonce (12) | ciphertext | tag (16)
+```text
+'P' 'T' | version = 3 | codec | ttl | hops | senderId int32 | seq int32     (14-byte header)
+nonce (12) | ciphertext | tag (16)                                          (sealed payload)
 ```
 
 - Key: PBKDF2‑HMAC‑SHA256 over the channel key with a fixed application salt, 64 000
   iterations, 256 bits. Deterministic, so every phone with the same channel key derives the
   same key; cached for the session.
 - AEAD: AES‑256‑GCM, a fresh 96‑bit random nonce per packet (`SecureRandom`), 128‑bit tag.
-- Associated data: the 13‑byte header with the ttl byte zeroed, because relays decrement the ttl
-  in place. Sender id, sequence and codec are therefore authenticated; a relay cannot change them.
+- Associated data: the 14‑byte header with the ttl byte zeroed, because relays decrement the ttl
+  in place. Sender id, sequence, codec and the sender's original hop budget (`hops`) are
+  therefore authenticated; a relay cannot change them, and a relay never lets the ttl exceed
+  `hops`, so bumping the ttl of a captured packet cannot extend its reach.
 - Cost: 28 bytes per packet, about 1.4 kB/s at 50 packets a second.
 
 ## CRA Annex I mapping (informative)
@@ -66,7 +69,7 @@ checklist, and this is where the app stands against each:
 | (2)(g) Data minimisation | The wire carries voice frames and a name; nothing else is collected or kept. |
 | (2)(h) Availability of essential functions, resilience to DoS | Rate limit, hop limit, bounded caches, reconnect in every transport, loss concealment. |
 | (2)(i) Minimising impact on other services | Packets are small and rate-limited; Wi‑Fi multicast plus broadcast is the only "noisy" behaviour and is confined to the WLAN. |
-| (2)(j) Limited attack surface | No server, no internet, no third-party libraries, permissions only for the links in use. |
+| (2)(j) Limited attack surface | No server, no internet, no third-party networking, crypto or analytics libraries (AndroidX and Material only, for the UI), permissions only for the links in use. |
 | (2)(k) Reduced impact of incidents | A compromised key is changed on the crew's phones; nothing else to leak. |
 | (2)(l) Security-relevant logging | The Status screen keeps the last 40 status lines (route changes, rejected packets counted); nothing leaves the phone. |
 | (2)(m) Secure deletion | Uninstalling the app removes its private storage; there is no other data. |

@@ -251,7 +251,7 @@ diagram("architecture", "How the app is built", nodes=[
      280, 230, 300, 90, ENGINE),
     ("cap", "Microphone" + NL + "(AudioCapture)" + NL + "16 kHz, 20 ms frames", 40, 400, 170, 70, AUDIO),
     ("enc", "Opus encoder" + NL + "(platform codec)", 40, 500, 170, 60, AUDIO),
-    ("pk", "Packet" + NL + "13-byte header +" + NL + "Opus/PCM frame, or a hello" + NL + "(roster heartbeat)", 280, 460, 170, 80, END),
+    ("pk", "Packet" + NL + "14-byte header +" + NL + "Opus/PCM frame, or a hello" + NL + "(roster heartbeat)", 280, 460, 170, 80, END),
     ("lan", "WLAN" + NL + "UDP multicast + broadcast", 530, 400, 160, 60, NET),
     ("bt", "Bluetooth" + NL + "RFCOMM link to one peer", 530, 480, 160, 60, NET),
     ("aw", "Wi-Fi Aware" + NL + "phone-to-phone, no router", 530, 560, 160, 60, NET),

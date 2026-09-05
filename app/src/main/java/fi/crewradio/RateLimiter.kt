@@ -26,10 +26,19 @@ class RateLimiter(
     private val buckets = HashMap<Int, Bucket>()
     private var lastSweepMs = 0L
 
-    /** True if the packet from [senderId] at [nowMs] is within both budgets. */
+    /** True if the packet from [senderId] at [nowMs] is within both budgets: [allowGlobal] then [allowSender]. */
+    fun allow(senderId: Int, nowMs: Long): Boolean = allowGlobal(nowMs) && allowSender(senderId, nowMs)
+
+    /**
+     * The global budget alone, for a packet that is not yet authenticated: the sender id it
+     * claims is not to be trusted, so nothing is charged to any sender yet.
+     */
     @Synchronized
-    fun allow(senderId: Int, nowMs: Long): Boolean {
-        if (!take(global, nowMs, globalPerSecond, globalBurst)) return false
+    fun allowGlobal(nowMs: Long): Boolean = take(global, nowMs, globalPerSecond, globalBurst)
+
+    /** The per-sender budget, for a packet whose sender id has been authenticated. */
+    @Synchronized
+    fun allowSender(senderId: Int, nowMs: Long): Boolean {
         if (nowMs - lastSweepMs > forgetMs) {
             buckets.values.removeIf { nowMs - it.lastMs > forgetMs }
             lastSweepMs = nowMs

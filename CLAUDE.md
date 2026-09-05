@@ -42,10 +42,13 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   the engine on every bind and resume (the settings, not the engine, are the source of truth);
   group/port/channel key are constructor arguments of the transports, so they need a reconnect.
   Sample rate is deliberately not a setting: 16 kHz is baked into the Opus path and the decimator.
-- `Packet`: 13-byte header `'P' 'T' | version=3 | codec | ttl | senderId int32 | seq int32 | nonce(12) | ciphertext | tag(16)`.
-  The payload is AES-256-GCM under the channel key (`ChannelCrypto`, key by PBKDF2, random nonce
-  per packet, header-minus-ttl as AAD). The engine opens a packet right after the rate limit and
-  before the seen-cache; anything that fails is `rejected`. `Prefs.channelKey` is generated at
+- `Packet`: 14-byte header `'P' 'T' | version=3 | codec | ttl | hops | senderId int32 | seq int32`,
+  followed by `nonce(12) | ciphertext | tag(16)` (`ChannelCrypto.seal` prepends the nonce). The
+  payload is AES-256-GCM under the channel key (`ChannelCrypto`, key by PBKDF2, random nonce per
+  packet, the header with the ttl byte zeroed as AAD). `hops` is the sender's original budget,
+  authenticated: a relay clamps ttl to min(ttl, hops, own limit). The engine charges the global
+  rate budget, opens the packet, then charges the sender's budget and goes on to the seen-cache;
+  anything that fails is `rejected`. `Prefs.channelKey` is generated at
   random on first use (no default) and doubles as the Aware passphrase; `docs/SECURITY.md` has the
   threat model.
   Codec 0 = PCM16LE frame, 1 = Opus packet, 2 = `Hello` roster heartbeat (no audio; older

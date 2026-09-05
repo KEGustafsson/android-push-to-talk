@@ -47,7 +47,7 @@ class ChannelCryptoTest {
     @Test
     fun theHeaderIsAuthenticatedToo() {
         val sealed = crypto.seal(aad, plain)
-        val otherSender = aad.copyOf().also { it[5] = (it[5].toInt() xor 1).toByte() }
+        val otherSender = aad.copyOf().also { it[6] = (it[6].toInt() xor 1).toByte() }
         assertNull(crypto.open(otherSender, sealed))
     }
 

@@ -110,7 +110,7 @@ hellos); and the last forty status lines with time stamps.
 | --- | --- |
 | **My name** | What the others see in their crew list. Empty: the phone's own name. |
 | **Channel name** | The big word at the top: the boat, the crew, the site. |
-| **Channel key** | The crew's shared secret: encrypts every packet and is the Wi‑Fi Aware passphrase. Generated on first start; every phone must have the same one. Change it to evict everyone who had the old one. |
+| **Channel key** | The crew's shared secret: encrypts every packet and is the Wi‑Fi Aware passphrase. Generated on first start; every phone must have the same one. Changing it affects only this phone: to rotate the key, set the new one on every phone that should stay and rejoin; phones left with the old key remain on the old channel, on their own. |
 | **Full duplex** | Off (default): hold to talk, others muted while you hold. On: the disc toggles the mic and everyone is heard at once. |
 | **Talk button** | Which hardware keys key the mic: headset button, volume keys, both, or off. |
 | **Audio output** | Headset when connected, else earpiece at the ear and loudspeaker otherwise (default); always the loudspeaker; or the earpiece. |
