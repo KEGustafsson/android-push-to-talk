@@ -161,6 +161,16 @@ repeat of the previous one rather than a click. The developer notes in
   full threat model and what the app does about each threat is in
   [docs/SECURITY.md](docs/SECURITY.md); report problems as described in [SECURITY.md](SECURITY.md).
 
+## The boat can talk too
+
+With a Signal K server on board, the boat itself can be on the channel. The
+[signalk-crewradio](sk-plugin/README.md) plugin makes the server one more node, over the boat
+WLAN, and a speaker for the boat's voice assistant ([signalk-wyoming](https://github.com/hoeken/signalk-wyoming)):
+anything the assistant is asked to say reaches every phone on the channel, and Signal K alarms
+(anchor dragging, man overboard, a hot engine) are announced by voice, urgently when they are
+emergencies, until they clear. The phones need the WLAN link ticked for it; the server shows on
+the roster under the vessel's name.
+
 ## Build it yourself
 
 Open the folder in Android Studio (a release that supports Android Gradle Plugin 9.4) and build, or

@@ -1,0 +1,33 @@
+{
+  "name": "signalk-crewradio",
+  "version": "0.1.0",
+  "description": "Puts the Signal K server on the Crew Radio push-to-talk channel: a Wyoming satellite for signalk-wyoming, so the boat's voice assistant can speak to the crew, plus a bridge that announces Signal K notifications and publishes the crew roster.",
+  "main": "index.js",
+  "license": "EUPL-1.2",
+  "author": "Karl-Erik Gustafsson",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KEGustafsson/android-push-to-talk.git",
+    "directory": "sk-plugin"
+  },
+  "homepage": "https://github.com/KEGustafsson/android-push-to-talk/tree/main/sk-plugin",
+  "keywords": [
+    "signalk-node-server-plugin",
+    "signalk-category-notifications",
+    "crew-radio",
+    "push-to-talk",
+    "wyoming",
+    "signalk-wyoming"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -24,3 +24,8 @@ updates:
     groups:
       all-actions:
         patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /sk-plugin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1

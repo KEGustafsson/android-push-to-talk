@@ -1,0 +1,14 @@
+{
+  "channelKey": "north-star-2026",
+  "derivedKeyHex": "c387a6bb78fb90ffdb2842ebbfa5057048545562ba2c97274ff6d0f1e442e1cc",
+  "nonceHex": "000102030405060708090a0b",
+  "header": {
+    "codec": 2,
+    "ttl": 4,
+    "hops": 4,
+    "senderId": 305419896,
+    "seq": 7
+  },
+  "plainHex": "0101040841726162656c6c61",
+  "packetHex": "5054030204041234567800000007000102030405060708090a0bbcee1ff455805ed4bacd8cdbdaf74c4a6d7841ae99bc52b5a213e2e1"
+}
