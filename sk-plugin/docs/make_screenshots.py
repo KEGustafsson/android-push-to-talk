@@ -171,65 +171,74 @@ def how_it_fits():
     diagram("how-it-fits", n, e, background=LIGHT_BG)
 
 
-# ---------------------------------------------------------------- 3. settings (light, admin UI)
+# ---------------------------------------------------------------- 3. settings (the admin UI's Plugin Config page)
+
+# Signal K server admin UI (CoreUI): dark sidebar, white navbar, grey page, white cards, RJSF form.
+NAV_BG, SIDE_BG, SIDE_TEXT, SIDE_ACTIVE, PAGE_BG = "#FFFFFF", "#2F353A", "#E4E7EA", "#20A8D8", "#E4E5E6"
+CARD_BORDER, INK2, DESC, INPUT_BORDER, PRIMARY = "#C8CED3", "#23282C", "#73818F", "#E4E7EA", "#20A8D8"
+
 
 def settings():
-    n = [rect("bg", 0, 0, W, H, fill=LIGHT_BG, stroke="none", arc=0)]
-    # admin UI chrome
-    n.append(rect("top", 0, 0, W, 56, fill=SK_BLUE, stroke="none", arc=0))
-    n.append(txt("brand", "Signal K", 24, 8, 200, 40, 20, "#FFFFFF", bold=True, mono=False))
-    n.append(txt("crumb", "Server  ›  Plugin Config  ›  Crew Radio", 200, 8, 600, 40, 15, "#DCEBFA", mono=False))
-    n.append(rect("side", 0, 56, 220, H - 56, fill="#FFFFFF", stroke="none", arc=0))
-    for i, item in enumerate(["Dashboard", "Data Browser", "Webapps", "Appstore", "Server", "  Settings", "  Plugin Config", "  Data Connections", "Security"]):
-        bold = item.strip() == "Plugin Config"
-        n.append(txt(f"s{i}", item, 20, 76 + i * 34, 190, 30, 14, (SK_BLUE if bold else INK), bold=bold, mono=False))
-    # plugin card
-    n.append(rect("card", 250, 80, 1000, 690, fill=LIGHT_CARD, stroke=LIGHT_LINE, arc=8))
-    n.append(txt("ph", "Crew Radio", 274, 92, 500, 34, 22, INK, bold=True, mono=False))
-    n.append(rect("en", 1090, 96, 140, 30, fill="#E8F5E9", stroke="#2E7D32", arc=30, label="Enabled", color="#1B5E20", size=13, mono=False))
-    n.append(txt("st", "Status: 3 online · assistant connected", 274, 124, 700, 26, 13, "#2E7D32", mono=False))
-    rows = [
-        ("Channel key", "••••••••••••••", "The crew's key, exactly as on the phones"),
-        ("Name on the roster", "Arabella", "How the phones list the server"),
-        ("Multicast group / UDP port", "239.255.42.1 / 47474", "Must match the phones"),
-        ("Network interface", "wlan0", "auto: a wlan interface, else eth/en"),
-        ("Hop budget", "4", "How far phones may relay the server"),
-        ("Wyoming satellite port / bind", "10701 / 127.0.0.1", "signalk-wyoming connects here; loopback unless widened"),
-        ("Chime before each announcement", "on", ""),
-        ("Wait for a gap in talk", "2000 ms", "Before an announcement cuts in"),
+    n = [rect("bg", 0, 0, W, H, fill=PAGE_BG, stroke="none", arc=0)]
+    # navbar
+    n.append(rect("nav", 0, 0, W, 55, fill=NAV_BG, stroke="none", arc=0))
+    n.append(rect("navline", 0, 55, W, 1, fill=CARD_BORDER, stroke="none", arc=0))
+    n.append(ellipse("logo", 214, 12, 30, 30, PRIMARY, "none", label="K", color="#FFFFFF", size=15))
+    n.append(txt("brand", "Signal K", 252, 12, 200, 30, 20, INK2, bold=True, mono=False))
+    n.append(txt("navr", "Logout", W - 110, 12, 90, 30, 14, INK2, mono=False, align="right"))
+    # sidebar
+    n.append(rect("side", 0, 56, 200, H - 56, fill=SIDE_BG, stroke="none", arc=0))
+    items = [("Dashboard", 0), ("Webapps", 0), ("Data Browser", 0), ("Server", 0), ("Plugin Config", 2), ("Server Settings", 1),
+             ("Data Connections", 1), ("Backup/Restore", 1), ("Update", 1), ("Server Log", 1), ("Security", 0), ("Documentation", 0), ("Appstore", 0)]
+    y = 72
+    for i, (label, kind) in enumerate(items):
+        if kind == 2:
+            n.append(rect(f"sa{i}", 0, y - 6, 200, 36, fill=SIDE_ACTIVE, stroke="none", arc=0))
+        n.append(txt(f"s{i}", label, 18 + (18 if kind else 0), y, 180, 24, 14, "#FFFFFF" if kind == 2 else SIDE_TEXT, mono=False))
+        y += 40 if kind != 1 else 36
+    # breadcrumb
+    n.append(txt("crumb", "Home  /  Server  /  Plugin Config", 224, 66, 600, 24, 13, DESC, mono=False))
+    # search + card
+    n.append(rect("search", 224, 100, 1030, 36, fill="#FFFFFF", stroke=INPUT_BORDER, arc=4, label="Search plugins", color=DESC, size=13, mono=False))
+    n.append(rect("card", 224, 152, 1030, H - 152, fill="#FFFFFF", stroke=CARD_BORDER, arc=4))   # runs off the bottom, as a scrolled page does
+    n.append(rect("cardh", 224, 152, 1030, 48, fill="#F0F3F5", stroke=CARD_BORDER, arc=4))
+    n.append(txt("ct", "Crew Radio", 244, 160, 400, 32, 17, INK2, bold=True, mono=False))
+    n.append(txt("cv", "signalk-crewradio  v0.1.0", 640, 160, 400, 32, 13, DESC, mono=False))
+    n.append(txt("cs", "3 online · assistant connected", 1000, 160, 240, 32, 13, "#4DBD74", mono=False, align="right"))
+    # checkboxes row
+    def checkbox(nid, x, y, label, on):
+        c = [rect(nid + "b", x, y + 4, 16, 16, fill=(PRIMARY if on else "#FFFFFF"), stroke=(PRIMARY if on else "#8F9BA6"), arc=15, width=1,
+                  label=("✓" if on else ""), color="#FFFFFF", size=12, mono=False, bold=True)]
+        c.append(txt(nid + "l", label, x + 24, y, 260, 24, 14, INK2, mono=False))
+        return c
+    n += checkbox("en", 244, 214, "Enabled", True)
+    n += checkbox("dbg", 400, 214, "Enable debug log", False)
+    n += checkbox("dl", 600, 214, "Enable logging", False)
+    # RJSF fields: label above, full-width input, description below
+    fields = [
+        ("Channel key*", "••••••••••••••", "The crew's channel key, exactly as on the phones (Settings › Channel key). Keeps the channel private; every node must share it."),
+        ("Name on the roster", "Arabella", "How the phones list the server. Empty: the vessel's name (Arabella)."),
+        ("Multicast group", "239.255.42.1", "Must match the phones' WLAN setting."),
+        ("UDP port", "47474", ""),
+        ("Network interface", "wlan0", "Interface on the boat WLAN (e.g. wlan0). auto: a wlan interface, else eth/en, else the first with an IPv4 address."),
+        ("Hop budget", "4", "How far phones may relay the server's packets over Bluetooth and Wi-Fi Aware."),
     ]
-    y = 166
-    for i, (label, value, hint) in enumerate(rows):
-        n.append(txt(f"l{i}", label, 274, y, 330, 30, 14, INK, mono=False))
-        if value in ("on", "off"):
-            n += [(f"v{i}t", "", 620, y + 3, 44, 24, f"rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor={SK_BLUE if value == 'on' else '#B0BEC5'};strokeColor=none;"),
-                  (f"v{i}k", "", 640 if value == "on" else 624, y + 6, 18, 18, "ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;")]
-        else:
-            n.append(rect(f"v{i}", 620, y, 300, 30, fill="#FFFFFF", stroke="#B0BEC5", arc=6, label=value, color=INK, size=13, mono=False))
-        n.append(txt(f"h{i}", hint, 940, y, 300, 30, 12, INK_MUTED, mono=False))
-        y += 38
-    n.append(txt("sec", "Announce Signal K notifications", 274, y + 8, 600, 30, 16, INK, bold=True, mono=False))
-    y += 46
-    rows2 = [
-        ("Enabled", "on", ""),
-        ("Announce from state", "alarm", "alert · warn · alarm · emergency"),
-        ("Only notifications that ask for sound", "on", "method includes \"sound\""),
-        ("Repeat every", "30 s", "0 says it once; stops when the alarm clears"),
-        ("Urgent states", "emergency", "jumps every queue, bypasses mute"),
-        ("Also on the boat's own speakers", "off", "off: only the crew channel"),
+    # The rest of the form (satellite port and bind, chime, gap, the notification section) sits below the fold.
+    _below_the_fold = [
+        ("Wyoming satellite port", "10701", "Add a satellite in signalk-wyoming with host 127.0.0.1 and this port, id \"crewradio\", and no wake words (speaker only)."),
     ]
-    for j, (label, value, hint) in enumerate(rows2):
-        i = 20 + j
-        n.append(txt(f"l{i}", label, 274, y, 330, 30, 14, INK, mono=False))
-        if value in ("on", "off"):
-            n += [(f"v{i}t", "", 620, y + 3, 44, 24, f"rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor={SK_BLUE if value == 'on' else '#B0BEC5'};strokeColor=none;"),
-                  (f"v{i}k", "", 640 if value == "on" else 624, y + 6, 18, 18, "ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;")]
+    y = 254
+    for i, (label, value, desc) in enumerate(fields):
+        n.append(txt(f"fl{i}", label, 244, y, 800, 22, 14, INK2, bold=True, mono=False))
+        n.append(rect(f"fi{i}", 244, y + 26, 990, 34, fill="#FFFFFF", stroke=INPUT_BORDER, arc=4, label="", color=INK2))
+        n.append(txt(f"fv{i}", value, 256, y + 26, 900, 34, 14, INK2, mono=False))
+        if desc:
+            n.append(txt(f"fd{i}", desc, 244, y + 62, 990, 20, 12, DESC, mono=False))
+            y += 92
         else:
-            n.append(rect(f"v{i}", 620, y, 300, 30, fill="#FFFFFF", stroke="#B0BEC5", arc=6, label=value, color=INK, size=13, mono=False))
-        n.append(txt(f"h{i}", hint, 940, y, 300, 30, 12, INK_MUTED, mono=False))
-        y += 38
-    n.append(rect("save", 274, y + 10, 120, 36, fill=SK_BLUE, stroke=SK_BLUE, arc=6, label="Submit", color="#FFFFFF", size=14, mono=False, bold=True))
-    diagram("settings", n, background=LIGHT_BG)
+            y += 74
+    # the page continues below the fold, as a real one does
+    diagram("settings", n, background=PAGE_BG)
 
 
 # ---------------------------------------------------------------- 4. icon
