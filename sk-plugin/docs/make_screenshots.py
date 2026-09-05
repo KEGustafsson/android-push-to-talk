@@ -121,7 +121,7 @@ def announcement():
         ("bridge", "signalk-crewradio · bridge", "at or above alarm, asks for sound\n→ say({ text, priority, targets: [\"crewradio\"] })\nrepeats every 30 s until it clears", CYAN),
         ("wy", "signalk-wyoming · Piper", "text-to-speech, the announcement queue\nurgent jumps every queue", CYAN),
         ("sat", "signalk-crewradio · satellite", "22 050 Hz → 16 kHz, a chime in front,\nwaits for a gap, keys the channel", CYAN),
-        ("wlan", "Boat WLAN → phones", "the app's own packets, AES-256-GCM\nrelayed on over Bluetooth and Wi-Fi Aware", TALKING),
+        ("wlan", "Boat network → phones", "LAN or WLAN, the app's own packets, AES-256-GCM\nrelayed on over Bluetooth and Wi-Fi Aware", TALKING),
     ]
     for i, (nid, head, body, color) in enumerate(cards):
         cy = y + i * 118
@@ -160,9 +160,9 @@ def how_it_fits():
     n.append(cap("c3", "synthesize · audio", 560, 510, 180))
     n.append(cap("srvpaths", "publishes communication.crewradio.online · nodes · talking", 460, 668, 380, 22, 12))
 
-    # right: the crew, on the boat WLAN
+    # right: the crew, on the boat network (the server may be on the wired side of the same router)
     n.append(("wlan", "", 910, 150, 330, 560, f"rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#0288D1;strokeWidth=1.5;dashed=1;"))
-    n.append(txt("wlant", "boat WLAN", 930, 158, 290, 30, 16, "#0288D1", bold=True, mono=False))
+    n.append(txt("wlant", "boat network: LAN / WLAN", 930, 158, 290, 30, 16, "#0288D1", bold=True, mono=False))
     for i, (name, y) in enumerate([("Skipper's phone", 220), ("Mate's phone", 380), ("Deck phone", 540)]):
         n.append(box(f"p{i}", name + "\nCrew Radio app", 950, y, 250, 90, "#E1F5FE", "#0288D1", 14, True))
     n.append(cap("c4", "16 kHz PCM · hellos · AES-256-GCM", 850, 262, 200, 44, 12))

@@ -2,7 +2,8 @@
 "use strict";
 
 /**
- * The WLAN link, the way the app's LanTransport does it: one UDP socket bound to the port on
+ * The LAN/WLAN link, the way the app's LanTransport does it (the server may sit on the wired LAN
+ * that the phones' WLAN is bridged to; multicast and broadcast cross that bridge like any other frame): one UDP socket bound to the port on
  * every address, joined to the multicast group on the chosen interface, and every packet sent
  * twice, to the group and to the interface's IPv4 broadcast address, because plenty of access
  * points filter multicast. The receiving side drops the duplicate by (sender, seq).

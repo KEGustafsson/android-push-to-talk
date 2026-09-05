@@ -30,7 +30,7 @@ const pkg = require("./package.json");
 const CHANNEL_RATE = 16_000;
 const WYOMING_API = "signalk-wyoming.api";
 
-/** @param {object} app the Signal K plugin API; `deps` lets tests inject a fake WLAN link */
+/** @param {object} app the Signal K plugin API; `deps` lets tests inject a fake network link */
 module.exports = function crewRadioPlugin(app, deps = {}) {
   const Link = deps.LanLink ?? LanLink;
   const plugin = {
@@ -67,15 +67,15 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
       if (!running) return;
       link = new Link({ group: cfg.group, port: cfg.port, iface: cfg.iface });
       link.on("error", (e) => {
-        app.error(`WLAN link: ${e.message}`);
+        app.error(`Network link: ${e.message}`);
         scheduleReopen();
       });
       try {
         const where = await link.open();
         backoffMs = 1000;
-        app.debug(`WLAN link up on ${where.iface} ${where.address} (group ${cfg.group}:${cfg.port}, broadcast ${where.broadcast})`);
+        app.debug(`Network link up on ${where.iface} ${where.address} (group ${cfg.group}:${cfg.port}, broadcast ${where.broadcast})`);
       } catch (e) {
-        app.error(`WLAN link: ${e.message}`);
+        app.error(`Network link: ${e.message}`);
         scheduleReopen();
         status();
         return;
@@ -181,7 +181,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
 
   /** One announcement from the assistant: to mono, to 16 kHz, chime in front, wait for a gap, key the channel. */
   async function announce(audio, cfg) {
-    if (!node) throw new Error("not on the channel (WLAN link down)");
+    if (!node) throw new Error("not on the channel (network link down)");
     let samples = bytesToSamples(Buffer.concat(audio.chunks));
     samples = toMono(samples, audio.channels);
     samples = resample(samples, audio.rate, CHANNEL_RATE);
@@ -211,7 +211,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
     if (!running) return;
     const r = roster ?? node?.roster() ?? [];
     const parts = [];
-    parts.push(node ? `${r.length} online` : "WLAN link down");
+    parts.push(node ? `${r.length} online` : "network link down");
     const talking = r.filter((n) => n.talking).map((n) => n.name);
     if (talking.length) parts.push(`talking: ${talking.join(", ")}`);
     if (node?.speaking) parts.push("announcing");
@@ -271,9 +271,9 @@ function schema(app) {
     properties: {
       channelKey: { type: "string", title: "Channel key", description: "The crew's channel key, exactly as on the phones (Settings › Channel key). Keeps the channel private; every node must share it." },
       nodeName: { type: "string", title: "Name on the roster", description: `How the phones list the server. Empty: the vessel's name (${boatName(app)}).`, default: "" },
-      group: { type: "string", title: "Multicast group", default: "239.255.42.1", description: "Must match the phones' WLAN setting." },
+      group: { type: "string", title: "Multicast group", default: "239.255.42.1", description: "Must match the phones' WLAN setting (Settings › WLAN group and port)." },
       port: { type: "integer", title: "UDP port", default: 47474, minimum: 1024, maximum: 65535 },
-      iface: { type: "string", title: "Network interface", default: "auto", description: "Interface on the boat WLAN (e.g. wlan0). auto: a wlan interface, else eth/en, else the first with an IPv4 address." },
+      iface: { type: "string", title: "Network interface", default: "auto", description: "The server's interface on the boat network: wired LAN (eth0) or WLAN (wlan0), as long as it is the same network the phones' WLAN is on. auto: a wlan interface, else eth/en, else the first with an IPv4 address." },
       hops: { type: "integer", title: "Hop budget", default: 4, minimum: 1, maximum: 8, description: "How far phones may relay the server's packets over Bluetooth and Wi-Fi Aware." },
       satellitePort: { type: "integer", title: "Wyoming satellite port", default: 10701, minimum: 1024, maximum: 65535, description: "Add a satellite in signalk-wyoming with host 127.0.0.1 and this port, id \"crewradio\" (or the id below), and no wake words (speaker only)." },
       satelliteHost: { type: "string", title: "Wyoming satellite bind address", default: "127.0.0.1", description: "Leave at 127.0.0.1 when signalk-wyoming runs on this server. The Wyoming protocol has no authentication; a wider address is taken only together with the allowlist below, and everyone not on it is refused." },

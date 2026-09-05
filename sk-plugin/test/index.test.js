@@ -13,7 +13,7 @@ const P = require("../lib/packet");
 const KEY = "north-star-2026";
 const crypto = ChannelCrypto.forChannelKey(KEY);
 
-/** A fake WLAN link: records what the plugin sends, lets the test inject packets. */
+/** A fake network link: records what the plugin sends, lets the test inject packets. */
 class FakeLink extends EventEmitter {
   constructor(opts) {
     super();
@@ -173,7 +173,7 @@ test("the notification bridge speaks through signalk-wyoming's say(), urgent for
   assert.equal(app.subs.length, 0, "unsubscribed");
 });
 
-test("a WLAN link that cannot open is reported and retried; the satellite still runs", async () => {
+test("a network link that cannot open is reported and retried; the satellite still runs", async () => {
   FakeLink.last = undefined;
   FakeLink.failOpen = true;
   const app = fakeApp();
@@ -183,7 +183,7 @@ test("a WLAN link that cannot open is reported and retried; the satellite still 
     await p.satelliteListening;
     await flush();
     assert.match(app.errors.at(-1), /no usable IPv4 interface/);
-    assert.match(app.status.at(-1) ?? "", /WLAN link down|assistant/);
+    assert.match(app.status.at(-1) ?? "", /network link down|assistant/);
   } finally {
     FakeLink.failOpen = false;
     p.stop();

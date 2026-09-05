@@ -1,7 +1,7 @@
 # signalk-crewradio
 
 Puts the boat's Signal K server on the [Crew Radio](../README.md) channel. The server becomes
-one more node on the crew's push-to-talk network, over the boat WLAN, and the phones relay it
+one more node on the crew's push-to-talk network, over the boat's LAN or WLAN, and the phones relay it
 onward over Bluetooth and Wi‑Fi Aware like any other talker. What it says comes from the boat's
 voice assistant, [signalk-wyoming](https://github.com/hoeken/signalk-wyoming), for which this
 plugin is a speaker: a Wyoming satellite without a microphone.
@@ -41,7 +41,9 @@ others are drawn. All carry example names only.
 - [signalk-wyoming](https://github.com/hoeken/signalk-wyoming) with its Piper text-to-speech
   service (signalk-piper). Without it the roster still works and the satellite waits, but nothing
   can be spoken.
-- The server on the same WLAN as the phones. The boat's router or one phone's hotspot both do.
+- The server on the same network as the phones: wired to the boat's router (LAN) or on its WLAN, either way one
+  network with the WLAN the phones use. A router with the server on Ethernet and the phones on Wi‑Fi is the usual
+  case; one phone's hotspot works too if the server can join it.
 - The crew's channel key (on any phone: Settings › Channel key).
 
 ## Install
@@ -58,7 +60,7 @@ npm install /path/to/android-push-to-talk/sk-plugin
 and restart the server. Then, in the Signal K admin UI:
 
 1. **Server › Plugin Config › Crew Radio**: paste the channel key, check the multicast group and
-   port match the phones (defaults do), pick the interface on the boat WLAN, enable.
+   port match the phones (defaults do), pick the server's interface on the boat network (eth0 or wlan0), enable.
 2. **Server › Plugin Config › signalk-wyoming › Satellites**: add one with
    `id: crewradio`, `host: 127.0.0.1`, `port: 10701`, no wake words. That makes it a
    speaker-only satellite; signalk-wyoming connects to it and shows it under `voice.satellites.crewradio.state`.
@@ -77,7 +79,7 @@ and restart the server. Then, in the Signal K admin UI:
 | Channel key | | The crew's key, exactly as on the phones. |
 | Name on the roster | vessel name | How the phones list the server. |
 | Multicast group, UDP port | 239.255.42.1, 47474 | Must match the phones' WLAN settings. |
-| Network interface | auto | wlan first, then eth/en, then anything with an IPv4 address. |
+| Network interface | auto | The server's interface on the boat network, wired (eth0) or WLAN (wlan0). auto: wlan first, then eth/en, then anything with an IPv4 address. |
 | Hop budget | 4 | How far phones may relay the server's packets. |
 | Wyoming satellite port, bind address | 10701, 127.0.0.1 | What signalk-wyoming connects to. The protocol has no authentication, so the satellite listens on loopback unless you widen it for an orchestrator on another host, and then only with the allowlist below. |
 | Orchestrator addresses allowed to connect | | Addresses or IPv4 ranges (10.10.10.0/24) that may connect when the bind address is not loopback; everyone else is refused. Loopback is always allowed. |
@@ -98,7 +100,7 @@ and restart the server. Then, in the Signal K admin UI:
   future app change will let urgent announcements through regardless.
 - **Two nodes named alike** are fine; the phones list nodes by id.
 - **Bandwidth.** Speech goes out as PCM, 34 kB/s while talking, nothing otherwise but one small
-  hello a second. Fine on WLAN; over a Bluetooth relay hop it is the same as a phone talking in PCM.
+  hello a second. Fine on LAN and WLAN; over a Bluetooth relay hop it is the same as a phone talking in PCM.
 - **Security.** The channel key sits in the server's plugin config like any other secret there.
   Anyone who can read the Signal K configuration can read it; treat the server as a crew member.
 
@@ -112,7 +114,7 @@ npm test        # Node's test runner, no dependencies
 `test/vector.json` is the cross-language vector; regenerate it only when the wire format
 changes, and change the app's `CrossLanguageVectorTest` with it.
 
-`tools/cli.js` runs the plugin's pieces from a shell on any machine on the WLAN, no Signal K
+`tools/cli.js` runs the plugin's pieces from a shell on any machine on the boat network, no Signal K
 needed, which is how the plugin was verified against real phones:
 
 ```sh
@@ -122,7 +124,7 @@ node tools/cli.js serve  --key KEY --port 10701          # join and run the Wyom
 node tools/cli.js send   --to 127.0.0.1:10701 --wav clip.wav   # play the orchestrator's part against it
 ```
 
-Phones list the machine under `--name` (default "Laptop"). On Windows the WLAN adapter may need
-`--iface WiFi`. The phones must have the WLAN transport on (Settings › Links).
+Phones list the machine under `--name` (default "Laptop"). On Windows the adapter may need
+`--iface WiFi` or `--iface Ethernet`. The phones must have the WLAN transport on (Settings › Links).
 
 Licence: EUPL‑1.2, like the app.

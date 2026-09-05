@@ -9,7 +9,7 @@ First release.
 
 ### Added
 
-- The Signal K server as a node on the Crew Radio channel over the boat WLAN: the app's wire
+- The Signal K server as a node on the Crew Radio channel over the boat's LAN or WLAN: the app's wire
   format and AES-256-GCM channel crypto, hellos and roster, duplicate suppression, packets paced
   at 20 ms. Byte-compatible with the Android app; the two test suites share one packet vector.
 - A speaker-only Wyoming satellite for signalk-wyoming: `describe`/`info`, `ping`/`pong`,
@@ -20,7 +20,7 @@ First release.
   announced through signalk-wyoming's in-process `say()`, urgent for `emergency`, repeated until
   they clear; include and exclude globs; optional fan-out to the boat's own speakers.
 - The roster in Signal K: `communication.crewradio.online`, `.nodes`, `.talking`.
-- `tools/cli.js` for testing from any machine on the WLAN without Signal K.
+- `tools/cli.js` for testing from any machine on the boat network without Signal K.
 
 ### Security
 
