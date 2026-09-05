@@ -45,7 +45,11 @@ echo cancellation and noise suppression), the AOSP Opus codec through `MediaCode
 - `AudioRoute` owns `AudioManager.mode` for the session and picks the communication device:
   Bluetooth SCO headset, else wired/USB headset, else the earpiece while the phone is at the
   ear (default policy) or the loudspeaker. It follows headsets as they come and go, re-opens
-  the SCO link if the headset drops it, and reports every change on the status line.
+  the SCO link if the headset drops it, and reports every change on the status line. A headset
+  that joins mid-session is not always ready to be the communication device the moment it is
+  listed, so a refused switch is retried for a few seconds. Every headset change also re-syncs
+  the voice monitor: the engine restarts it when its mic no longer matches the route (headset
+  and phone mic have different gate levels, and only the phone mic is armed by the ear).
 
 ## Packets and the mesh
 

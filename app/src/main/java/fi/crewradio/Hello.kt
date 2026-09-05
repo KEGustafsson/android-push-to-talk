@@ -66,9 +66,9 @@ class Hello(val name: String, val transports: Int, val ttl: Int) {
 
         /** Flags as text, e.g. `LAN+BT`; empty when none are set. */
         fun describe(flags: Int): String = buildList {
-            if (flags and LAN != 0) add("LAN")
-            if (flags and BT != 0) add("BT")
-            if (flags and AWARE != 0) add("Aware")
+            if ((flags and LAN) != 0) add("LAN")
+            if ((flags and BT) != 0) add("BT")
+            if ((flags and AWARE) != 0) add("Aware")
         }.joinToString("+")
 
         /** The longest prefix of [s] whose UTF-8 form fits in [max] bytes, never cutting a code point. */
