@@ -181,40 +181,48 @@ class PttEngine(
      * the mic; the capture itself is stopped outside the lock, since its worker may be waiting for it.
      */
     private fun syncMonitor() {
-        var toStop: AudioCapture? = null
-        synchronized(monitorLock) {
-            // On the phone itself the ear arms voice keying (earpiece, or auto at the ear); with a
-            // Bluetooth headset it is the setting. A wired headset has a button that works, so neither.
-            val phone = !route.headset && route.policy != AudioRoute.Policy.SPEAKER
-            val want = isConnected && !held && (phone || (headsetVox && route.bluetoothHeadset))
-            if (want == (monitor != null)) return
-            if (!want) {
-                toStop = monitor
-                monitor = null
-                if (gateTalking) { gateTalking = false; stopTalking() }
-                gate.reset()
-                preroll.clear()
-                if (phoneMic) watchProximity(false)
-            } else {
-                gate.reset()
-                phoneMic = !route.bluetoothHeadset
-                gate.tune(phoneMic)
-                if (phoneMic) watchProximity(true)
-                preroll.clear()
-                lateinit var m: AudioCapture
-                m = AudioCapture { pcm -> synchronized(monitorLock) { if (monitor === m) voiceFrame(pcm) } }
-                monitor = m                                   // published first: the worker may call back before start() returns
-                try {
-                    m.start()
-                    onStatus("Voice keys the mic")
-                } catch (e: Exception) {
+        while (true) {
+            var toStop: AudioCapture? = null
+            synchronized(monitorLock) {
+                // On the phone itself the ear arms voice keying (earpiece, or auto at the ear); with a
+                // Bluetooth headset it is the setting. A wired headset has a button that works, so neither.
+                val phone = !route.headset && route.policy != AudioRoute.Policy.SPEAKER
+                val want = isConnected && !held && (phone || (headsetVox && route.bluetoothHeadset))
+                val wantPhoneMic = !route.bluetoothHeadset
+                // A capture tuned for the other mic is as wrong as one that should not run: a headset
+                // that appears or goes away mid-session stops the monitor, and the next pass starts
+                // a fresh one with the right gate once the old one has let go of the mic.
+                if (monitor != null && (!want || wantPhoneMic != phoneMic)) {
+                    toStop = monitor
                     monitor = null
-                    toStop = m
-                    onStatus("Mic error: ${e.message}")
-                }
+                    if (gateTalking) { gateTalking = false; stopTalking() }
+                    else if (talking) stopTalking()               // the mic that was feeding it is going away
+                    gate.reset()
+                    preroll.clear()
+                    if (phoneMic) watchProximity(false)
+                } else if (want && monitor == null) {
+                    gate.reset()
+                    phoneMic = wantPhoneMic
+                    gate.tune(phoneMic)
+                    if (phoneMic) watchProximity(true)
+                    preroll.clear()
+                    lateinit var m: AudioCapture
+                    m = AudioCapture { pcm -> synchronized(monitorLock) { if (monitor === m) voiceFrame(pcm) } }
+                    monitor = m                                   // published first: the worker may call back before start() returns
+                    try {
+                        m.start()
+                        onStatus(if (phoneMic) "Voice keys the mic at the ear" else "Voice keys the mic")
+                    } catch (e: Exception) {
+                        monitor = null
+                        if (phoneMic) watchProximity(false)
+                        m.stop()                                  // start() threw, so no worker exists; frees the record
+                        onStatus("Mic error: ${e.message}")
+                    }
+                    return
+                } else return
             }
+            toStop?.stop()                                        // outside the lock: its worker may be waiting for it
         }
-        toStop?.stop()
     }
 
     /** One frame from the headset capture: runs the voice gate, then sends or keeps it for the pre-roll. Holds [monitorLock]. */
@@ -284,7 +292,8 @@ class PttEngine(
         }
 
     init {
-        route.onBluetoothHeadset = { present -> syncCall(present); syncMonitor() }
+        route.onBluetoothHeadset = { present -> syncCall(present) }
+        route.onHeadsetChanged = { syncMonitor() }
     }
 
     private fun syncCall(bluetoothPresent: Boolean) {

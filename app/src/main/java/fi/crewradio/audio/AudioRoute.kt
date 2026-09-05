@@ -48,6 +48,9 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
     /** Called (on the main thread) when a Bluetooth headset becomes, or stops being, the wanted route. */
     var onBluetoothHeadset: ((Boolean) -> Unit)? = null
 
+    /** Called (on the main thread) after [onBluetoothHeadset] whenever [headset] or [bluetoothHeadset] changed. */
+    var onHeadsetChanged: (() -> Unit)? = null
+
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var active = false
@@ -89,6 +92,22 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
         handler.postDelayed(healRunnable, 700)     // let the stack finish tearing the link down first
     }
 
+    /**
+     * A headset that has just connected shows up among the outputs a moment before the platform
+     * lets it be the communication device, and [AudioManager.setCommunicationDevice] can refuse
+     * it meanwhile. Rather than sit on the speaker until the next device event, try again a few
+     * times; the count starts over whenever a route applies.
+     */
+    private var retries = 0
+    private val retryRunnable = Runnable { if (active && !passive) apply(announce = true) }
+
+    private fun retryLater() {
+        if (retries >= MAX_RETRIES) return
+        retries++
+        handler.removeCallbacks(retryRunnable)
+        handler.postDelayed(retryRunnable, RETRY_MS)
+    }
+
     private val deviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>) { if (active) apply(announce = true) }
         override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) { if (active) apply(announce = true) }
@@ -112,6 +131,8 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
         if (!active) return
         active = false
         handler.removeCallbacks(healRunnable)
+        handler.removeCallbacks(retryRunnable)
+        retries = 0
         audioManager.unregisterAudioDeviceCallback(deviceCallback)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) commDeviceListener?.let { audioManager.removeOnCommunicationDeviceChangedListener(it) }
         else try { context.unregisterReceiver(scoReceiver) } catch (e: Exception) { onStatus("Audio route: ${e.message}") }
@@ -143,11 +164,12 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
         val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         val headset = if (policy == Policy.AUTO) pickHeadset(outputs) else null
         val bluetooth = headset?.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
-        if (bluetooth != bluetoothWanted) {
-            bluetoothWanted = bluetooth
-            handler.post { onBluetoothHeadset?.invoke(bluetooth) }
-        }
+        val bluetoothChanged = bluetooth != bluetoothWanted
+        val headsetChanged = (headset != null) != this.headset
+        bluetoothWanted = bluetooth
         this.headset = headset != null
+        if (bluetoothChanged) handler.post { onBluetoothHeadset?.invoke(bluetooth) }
+        if (bluetoothChanged || headsetChanged) handler.post { onHeadsetChanged?.invoke() }
         if (passive) return                                   // Telecom is routing; it reports the label itself
         val earpiece = headset == null && (policy == Policy.EARPIECE || (policy == Policy.AUTO && atEar))
         val label = when {
@@ -161,12 +183,19 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (headset != null) {
-                    // The device list for communication may lag the output list by a moment; fall back to speaker if so.
+                    // The communication device list may lag the output list by a moment, and the
+                    // switch itself can be refused while the link comes up: speaker for now, then retry.
                     val dev = audioManager.availableCommunicationDevices.firstOrNull { it.id == headset.id }
                         ?: audioManager.availableCommunicationDevices.firstOrNull { it.type == headset.type }
-                    if (dev != null) audioManager.setCommunicationDevice(dev)
-                    else { audioManager.clearCommunicationDevice(); current = "Speaker" }
+                    if (dev != null && audioManager.setCommunicationDevice(dev)) {
+                        retries = 0
+                    } else {
+                        audioManager.clearCommunicationDevice()
+                        current = "Speaker"
+                        retryLater()
+                    }
                 } else {
+                    retries = 0
                     audioManager.clearCommunicationDevice()
                     val type = if (earpiece) AudioDeviceInfo.TYPE_BUILTIN_EARPIECE else AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
                     audioManager.availableCommunicationDevices.firstOrNull { it.type == type }
@@ -206,6 +235,8 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
             ?: outputs.firstOrNull { it.type in WIRED }
 
     private companion object {
+        const val MAX_RETRIES = 6
+        const val RETRY_MS = 700L
         val WIRED = setOf(
             AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
             AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE

@@ -87,7 +87,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   communication device: Bluetooth SCO headset, else wired/USB headset, else speakerphone
   (`setCommunicationDevice` on API 31+, `startBluetoothSco`/`isSpeakerphoneOn` below). It
   re-applies on every `AudioDeviceCallback` event and on a policy change; setting `audio_route`
-  (auto | speaker | earpiece) is pushed into the engine with the other live settings.
+  (auto | speaker | earpiece) is pushed into the engine with the other live settings. A headset that
+  joins mid-session is listed among the outputs before it can be the communication device, so a
+  refused switch falls back to the speaker and retries (700 ms, up to 6 times). `onHeadsetChanged`
+  fires on any headset/Bluetooth change and `syncMonitor` then restarts the voice monitor when its
+  mic (headset vs phone, different gate tuning and proximity arming) no longer matches the route.
 - Bluetooth headsets: measured on a Jabra Evolve2 65 + S25. With SCO up and no call, a tap is
   an AVRCP PLAY that reaches our `MediaSession` (good); the headset sometimes sends AT+CHUP
   (hang-up) instead, and with no call to hang up Android drops the SCO link and does not
