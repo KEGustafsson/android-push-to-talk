@@ -1,9 +1,10 @@
-"""Draws the App Store screenshots and the icon for signalk-crewradio as draw.io files, the way
-docs/diagrams/make_diagrams.py draws the app's screens: mock-ups with example names, no real
-device names. Export to PNG with draw.io desktop from the repository root:
+"""Draws the two illustrative App Store pictures and the icon for signalk-crewradio as draw.io files,
+the way docs/diagrams/make_diagrams.py draws the app's screens: mock-ups with example names, no real
+device names. The admin UI pictures (plugin-config.png, data-browser.png) are real captures of a
+Signal K server with the plugin installed, taken with docs/capture_admin_ui.md's recipe. Export to PNG with draw.io desktop from the repository root:
 
     python sk-plugin/docs/make_screenshots.py
-    for n in announcement how-it-fits settings; do
+    for n in announcement how-it-fits; do
       "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 1 -b 0 -o sk-plugin/docs/screenshots/$n.png sk-plugin/docs/diagrams/$n.drawio
     done
     "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 1 -b 0 -o sk-plugin/docs/icon.png sk-plugin/docs/diagrams/icon.drawio
@@ -171,76 +172,6 @@ def how_it_fits():
     diagram("how-it-fits", n, e, background=LIGHT_BG)
 
 
-# ---------------------------------------------------------------- 3. settings (the admin UI's Plugin Config page)
-
-# Signal K server admin UI (CoreUI): dark sidebar, white navbar, grey page, white cards, RJSF form.
-NAV_BG, SIDE_BG, SIDE_TEXT, SIDE_ACTIVE, PAGE_BG = "#FFFFFF", "#2F353A", "#E4E7EA", "#20A8D8", "#E4E5E6"
-CARD_BORDER, INK2, DESC, INPUT_BORDER, PRIMARY = "#C8CED3", "#23282C", "#73818F", "#E4E7EA", "#20A8D8"
-
-
-def settings():
-    n = [rect("bg", 0, 0, W, H, fill=PAGE_BG, stroke="none", arc=0)]
-    # navbar
-    n.append(rect("nav", 0, 0, W, 55, fill=NAV_BG, stroke="none", arc=0))
-    n.append(rect("navline", 0, 55, W, 1, fill=CARD_BORDER, stroke="none", arc=0))
-    n.append(ellipse("logo", 214, 12, 30, 30, PRIMARY, "none", label="K", color="#FFFFFF", size=15))
-    n.append(txt("brand", "Signal K", 252, 12, 200, 30, 20, INK2, bold=True, mono=False))
-    n.append(txt("navr", "Logout", W - 110, 12, 90, 30, 14, INK2, mono=False, align="right"))
-    # sidebar
-    n.append(rect("side", 0, 56, 200, H - 56, fill=SIDE_BG, stroke="none", arc=0))
-    items = [("Dashboard", 0), ("Webapps", 0), ("Data Browser", 0), ("Server", 0), ("Plugin Config", 2), ("Server Settings", 1),
-             ("Data Connections", 1), ("Backup/Restore", 1), ("Update", 1), ("Server Log", 1), ("Security", 0), ("Documentation", 0), ("Appstore", 0)]
-    y = 72
-    for i, (label, kind) in enumerate(items):
-        if kind == 2:
-            n.append(rect(f"sa{i}", 0, y - 6, 200, 36, fill=SIDE_ACTIVE, stroke="none", arc=0))
-        n.append(txt(f"s{i}", label, 18 + (18 if kind else 0), y, 180, 24, 14, "#FFFFFF" if kind == 2 else SIDE_TEXT, mono=False))
-        y += 40 if kind != 1 else 36
-    # breadcrumb
-    n.append(txt("crumb", "Home  /  Server  /  Plugin Config", 224, 66, 600, 24, 13, DESC, mono=False))
-    # search + card
-    n.append(rect("search", 224, 100, 1030, 36, fill="#FFFFFF", stroke=INPUT_BORDER, arc=4, label="Search plugins", color=DESC, size=13, mono=False))
-    n.append(rect("card", 224, 152, 1030, H - 152, fill="#FFFFFF", stroke=CARD_BORDER, arc=4))   # runs off the bottom, as a scrolled page does
-    n.append(rect("cardh", 224, 152, 1030, 48, fill="#F0F3F5", stroke=CARD_BORDER, arc=4))
-    n.append(txt("ct", "Crew Radio", 244, 160, 400, 32, 17, INK2, bold=True, mono=False))
-    n.append(txt("cv", "signalk-crewradio  v0.1.0", 640, 160, 400, 32, 13, DESC, mono=False))
-    n.append(txt("cs", "3 online · assistant connected", 1000, 160, 240, 32, 13, "#4DBD74", mono=False, align="right"))
-    # checkboxes row
-    def checkbox(nid, x, y, label, on):
-        c = [rect(nid + "b", x, y + 4, 16, 16, fill=(PRIMARY if on else "#FFFFFF"), stroke=(PRIMARY if on else "#8F9BA6"), arc=15, width=1,
-                  label=("✓" if on else ""), color="#FFFFFF", size=12, mono=False, bold=True)]
-        c.append(txt(nid + "l", label, x + 24, y, 260, 24, 14, INK2, mono=False))
-        return c
-    n += checkbox("en", 244, 214, "Enabled", True)
-    n += checkbox("dbg", 400, 214, "Enable debug log", False)
-    n += checkbox("dl", 600, 214, "Enable logging", False)
-    # RJSF fields: label above, full-width input, description below
-    fields = [
-        ("Channel key*", "••••••••••••••", "The crew's channel key, exactly as on the phones (Settings › Channel key). Keeps the channel private; every node must share it."),
-        ("Name on the roster", "Arabella", "How the phones list the server. Empty: the vessel's name (Arabella)."),
-        ("Multicast group", "239.255.42.1", "Must match the phones' WLAN setting."),
-        ("UDP port", "47474", ""),
-        ("Network interface", "wlan0", "Interface on the boat WLAN (e.g. wlan0). auto: a wlan interface, else eth/en, else the first with an IPv4 address."),
-        ("Hop budget", "4", "How far phones may relay the server's packets over Bluetooth and Wi-Fi Aware."),
-    ]
-    # The rest of the form (satellite port and bind, chime, gap, the notification section) sits below the fold.
-    _below_the_fold = [
-        ("Wyoming satellite port", "10701", "Add a satellite in signalk-wyoming with host 127.0.0.1 and this port, id \"crewradio\", and no wake words (speaker only)."),
-    ]
-    y = 254
-    for i, (label, value, desc) in enumerate(fields):
-        n.append(txt(f"fl{i}", label, 244, y, 800, 22, 14, INK2, bold=True, mono=False))
-        n.append(rect(f"fi{i}", 244, y + 26, 990, 34, fill="#FFFFFF", stroke=INPUT_BORDER, arc=4, label="", color=INK2))
-        n.append(txt(f"fv{i}", value, 256, y + 26, 900, 34, 14, INK2, mono=False))
-        if desc:
-            n.append(txt(f"fd{i}", desc, 244, y + 62, 990, 20, 12, DESC, mono=False))
-            y += 92
-        else:
-            y += 74
-    # the page continues below the fold, as a real one does
-    diagram("settings", n, background=PAGE_BG)
-
-
 # ---------------------------------------------------------------- 4. icon
 
 def icon():
@@ -253,5 +184,4 @@ def icon():
 if __name__ == "__main__":
     announcement()
     how_it_fits()
-    settings()
     icon()

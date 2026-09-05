@@ -24,11 +24,16 @@ Everything on the wire is the app's own format: AES‑256‑GCM under the crew's
 same packets, the same roster hellos. The plugin's tests and the app's unit tests check the same
 byte vector, so the two cannot drift apart unnoticed.
 
+![The plugin's page in the Signal K admin UI](./docs/screenshots/plugin-config.png)
+
+![The roster in the Data Browser](./docs/screenshots/data-browser.png)
+
 ![An alarm on its way from Signal K to the crew's phones](./docs/screenshots/announcement.png)
 
 ![How the plugin fits between Signal K, signalk-wyoming and the phones](./docs/screenshots/how-it-fits.png)
 
-The pictures are drawn, not photographed, so they carry example names only.
+The admin UI pictures are captures of a Signal K server 2.31 with the plugin installed; the two
+others are drawn. All carry example names only.
 
 ## Requirements
 

@@ -29,9 +29,10 @@
     "displayName": "Crew Radio",
     "appIcon": "./docs/icon.png",
     "screenshots": [
+      "./docs/screenshots/plugin-config.png",
       "./docs/screenshots/announcement.png",
-      "./docs/screenshots/how-it-fits.png",
-      "./docs/screenshots/settings.png"
+      "./docs/screenshots/data-browser.png",
+      "./docs/screenshots/how-it-fits.png"
     ],
     "recommends": [
       "signalk-wyoming",

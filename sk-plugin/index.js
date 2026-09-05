@@ -153,7 +153,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
       bridge.on("announce", (a) => app.debug(`announce ${a.priority}: ${a.path}: ${a.message}`));
       bridge.start();
       app.subscriptionmanager.subscribe(
-        { context: "vessels.self", subscribe: [{ path: "notifications.*", period: 1000, policy: "instant" }] },
+        { context: "vessels.self", subscribe: [{ path: "notifications.*", policy: "instant" }] },   // no period: the server warns that a period implies 'fixed'
         unsubscribes,
         (err) => app.error(`notifications subscription: ${err}`),
         (delta) => bridge.onDelta(delta),

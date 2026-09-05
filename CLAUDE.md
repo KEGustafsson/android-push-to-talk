@@ -149,8 +149,12 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   `--ignore-scripts`, constructor returns an object, `start()` completes with schema defaults and
   without `setPluginError` (so a missing channel key is a status, not an error), a schema, own tests
   that pass within 60 s, a clean `npm audit`, a `CHANGELOG.md` in the tarball and
-  `signalk.screenshots` in package.json. Screenshots and the icon are drawn by
-  `docs/make_screenshots.py` (draw.io export, like the app's docs), 1280 x 800. `lib/packet.js`,
+  `signalk.screenshots` in package.json. The admin UI pictures (`plugin-config.png`,
+  `data-browser.png`) are real captures of a scratch signalk-server with the plugin installed
+  (recipe: `sk-plugin/docs/capture_admin_ui.md`; a headless Edge driven over the DevTools
+  protocol, since its `--screenshot` flag is unreliable on Windows); the two illustrations and
+  the icon are drawn by `docs/make_screenshots.py` (draw.io export, like the app's docs).
+  Never pass off a drawing as a screenshot of the admin UI. `lib/packet.js`,
   `lib/crypto.js` and `lib/node.js` mirror `Packet.kt`, `ChannelCrypto.kt`, `Hello.kt` and the
   engine's roster rules byte for byte; `sk-plugin/test/vector.json` and the app's
   `CrossLanguageVectorTest` check the same packet, so change both when the wire changes.
