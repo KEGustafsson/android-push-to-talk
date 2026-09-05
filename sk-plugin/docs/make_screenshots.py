@@ -113,7 +113,7 @@ def announcement():
     n.append(txt("title", "The boat speaks on the crew channel", 60, 44, 800, 44, 30, TEXT, bold=True, mono=False))
     n.append(txt("sub", "A Signal K alarm, said by the boat's voice assistant, heard on every phone of the crew.", 60, 90, 760, 30, 16, MUTED, mono=False))
     # the phone, at 0.8
-    n += phone("ph", 820, 100, "ARABELLA", "3", 0.8)
+    n += phone("ph", 820, 100, "SIRIUS", "3", 0.8)
     # the server side: a chain of cards
     y = 160
     cards = [
@@ -130,44 +130,54 @@ def announcement():
         n.append(txt(nid + "b", body, 80, cy + 34, 660, 62, 13, TEXT, valign="top"))
         if i < len(cards) - 1:
             n.append(txt(nid + "a", "↓", 60, cy + 100, 700, 18, 16, MUTED, align="center"))
-    n.append(txt("foot", "Data browser: communication.crewradio.online = 3 · .talking = [\"Arabella\"]", 60, H - 52, 740, 24, 13, MUTED))
+    n.append(txt("foot", "Data browser: communication.crewradio.online = 3 · .talking = [\"Sirius\"]", 60, H - 52, 740, 24, 13, MUTED))
     diagram("announcement", n, background=BG)
 
 
 # ---------------------------------------------------------------- 2. how it fits (light)
 
 def how_it_fits():
-    box = lambda nid, label, x, y, w, h, fill, stroke, size=14, bold=False: rect(nid, x, y, w, h, fill=fill, stroke=stroke, arc=10, label=label, color=INK, size=size, mono=False, bold=bold)
-    edge = "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;" + SANS + "fontSize=12;strokeColor=#455A64;strokeWidth=2;"
+    box = lambda nid, label, x, y, w, h, fill, stroke, size=14, bold=False: rect(nid, x, y, w, h, fill=fill, stroke=stroke, arc=10, width=1.5, label=label, color=INK, size=size, mono=False, bold=bold)
+    edge = "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#455A64;strokeWidth=2;"
+    dashed = "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;dashed=1;strokeColor=#78909C;strokeWidth=2;"
+    cap = lambda nid, label, x, y, w, h=22, size=12, align="center": txt(nid, label, x, y, w, h, size, INK_MUTED, mono=False, align=align)
     n = [rect("bg", 0, 0, W, H, fill=LIGHT_BG, stroke="none", arc=0)]
-    n.append(txt("title", "How signalk-crewradio fits in", 60, 40, 900, 44, 30, INK, bold=True, mono=False))
-    n.append(txt("sub", "The Signal K server is one more node on the crew's push-to-talk channel, and a speaker for its voice assistant.", 60, 86, 1000, 30, 16, INK_MUTED, mono=False))
-    # server container
-    n.append(rect("srv", 60, 150, 760, 560, fill=LIGHT_CARD, stroke=LIGHT_LINE, arc=12))
-    n.append(txt("srvt", "Signal K server (Raspberry Pi, Node 24)", 84, 160, 600, 30, 16, INK_MUTED, bold=True, mono=False))
-    n.append(box("src", "Alarms and data\nanchor · MOB · AIS CPA · engine · depth", 90, 210, 300, 80, "#FFF3E0", "#EF6C00"))
-    n.append(box("nodered", "Node-RED, dashboards, other plugins\nPUT voice.say · REST /api/say", 90, 330, 300, 80, "#F3E5F5", "#7B1FA2"))
-    n.append(box("cr", "signalk-crewradio\nnotification bridge · Wyoming satellite\nchannel node · roster to Signal K", 450, 210, 340, 100, "#E0F7FA", "#00838F", 14, True))
-    n.append(box("wy", "signalk-wyoming\nsay() · queue · urgent priority", 450, 345, 340, 80, "#E8F5E9", "#2E7D32"))
-    n.append(box("piper", "signalk-piper (Wyoming)\ntext-to-speech, 22 050 Hz", 450, 460, 340, 70, "#E8F5E9", "#2E7D32"))
-    n.append(box("paths", "communication.crewradio.online / .nodes / .talking", 90, 590, 700, 50, "#ECEFF1", "#455A64", 13))
-    # phones
-    for i, (name, x, y) in enumerate([("Skipper's phone", 900, 190), ("Mate's phone", 1060, 330), ("Deck phone", 900, 470)]):
-        n.append(box(f"p{i}", name + "\nCrew Radio", x, y, 150, 80, "#E1F5FE", "#0288D1", 14, True))
-    n.append(txt("wlan", "boat WLAN: multicast and broadcast, AES-256-GCM", 860, 600, 380, 24, 12, INK_MUTED, mono=False, align="center"))
-    n.append(txt("mesh", "the phones relay on over Bluetooth and Wi-Fi Aware (dashed)", 860, 626, 380, 24, 12, INK_MUTED, mono=False, align="center"))
+    n.append(txt("title", "How signalk-crewradio fits in", 60, 36, 900, 44, 30, INK, bold=True, mono=False))
+    n.append(txt("sub", "The Signal K server becomes one more node on the crew's channel, and a speaker for the boat's voice assistant.", 60, 82, 1100, 30, 16, INK_MUTED, mono=False))
+
+    # left: where announcements come from
+    n.append(box("alarms", "Alarms in Signal K\nanchor drag · man overboard · AIS · engine · depth", 60, 200, 330, 100, "#FFF3E0", "#EF6C00"))
+    n.append(box("say", "Anything that can speak\nNode-RED · dashboards · other plugins\nPUT voice.say · REST /api/say", 60, 400, 330, 110, "#F3E5F5", "#7B1FA2"))
+
+    # middle: the server
+    n.append(rect("srv", 450, 150, 400, 560, fill=LIGHT_CARD, stroke=LIGHT_LINE, arc=14, width=1.5))
+    n.append(txt("srvt", "Signal K server", 470, 158, 360, 30, 16, INK_MUTED, bold=True, mono=False))
+    n.append(box("cr", "signalk-crewradio\nnotification bridge · Wyoming satellite\nchannel node · roster", 480, 200, 340, 110, "#E0F7FA", "#00838F", 14, True))
+    n.append(box("wy", "signalk-wyoming\nsay() · announcement queue · urgent first", 480, 400, 340, 90, "#E8F5E9", "#2E7D32"))
+    n.append(box("piper", "signalk-piper\ntext-to-speech, 22 050 Hz", 480, 560, 340, 80, "#E8F5E9", "#2E7D32"))
+    n.append(cap("c1", "say(text, urgent)", 400, 340, 150, align="right"))
+    n.append(cap("c2", "audio", 760, 340, 120, align="left"))
+    n.append(cap("c3", "synthesize · audio", 560, 510, 180))
+    n.append(cap("srvpaths", "publishes communication.crewradio.online · nodes · talking", 460, 668, 380, 22, 12))
+
+    # right: the crew, on the boat WLAN
+    n.append(("wlan", "", 910, 150, 330, 560, f"rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#0288D1;strokeWidth=1.5;dashed=1;"))
+    n.append(txt("wlant", "boat WLAN", 930, 158, 290, 30, 16, "#0288D1", bold=True, mono=False))
+    for i, (name, y) in enumerate([("Skipper's phone", 220), ("Mate's phone", 380), ("Deck phone", 540)]):
+        n.append(box(f"p{i}", name + "\nCrew Radio app", 950, y, 250, 90, "#E1F5FE", "#0288D1", 14, True))
+    n.append(cap("c4", "16 kHz PCM · hellos · AES-256-GCM", 850, 262, 200, 44, 12))
+    n.append(cap("c5", "the phones relay on over Bluetooth and Wi-Fi Aware", 930, 660, 290, 36, 12))
+    n.append(cap("legend", "the plugin talks to signalk-wyoming over the Wyoming protocol on loopback; the phones hear the same packets as from any crew member", 60, 740, 1160, 24, 12))
+
     e = [
-        ("src", "cr", "notifications.*", edge),
-        ("nodered", "wy", "say()", edge),
-        ("cr", "wy", "say(urgent)", edge),
-        ("wy", "piper", "synthesize ↕ audio", edge + "startArrow=block;startFill=1;"),
-        ("wy", "cr", "audio-start/chunk/stop", edge),
-        ("cr", "paths", "roster", edge),
-        ("cr", "p0", "16 kHz PCM, hellos", edge),
-        ("cr", "p1", "", edge, [(840, 260), (840, 370)]),
-        ("cr", "p2", "", edge, [(840, 260), (840, 510)]),
-        ("p0", "p1", "", edge + "dashed=1;"),
-        ("p1", "p2", "", edge + "dashed=1;"),
+        ("alarms", "cr", "", edge),
+        ("say", "wy", "", edge),
+        ("cr", "wy", "", edge, [(560, 355)]),                 # left lane, down
+        ("wy", "cr", "", edge, [(740, 355)]),                 # right lane, up
+        ("wy", "piper", "", edge + "startArrow=block;startFill=1;"),
+        ("cr", "p0", "", edge, [(880, 255), (880, 265)]),
+        ("p0", "p1", "", dashed, [(1220, 265), (1220, 425)]),
+        ("p1", "p2", "", dashed, [(1220, 425), (1220, 585)]),
     ]
     diagram("how-it-fits", n, e, background=LIGHT_BG)
 
@@ -175,9 +185,12 @@ def how_it_fits():
 # ---------------------------------------------------------------- 4. icon
 
 def icon():
+    """A speech waveform in the app's talk-button colours, 128 x 128."""
     n = [rect("bg", 0, 0, 128, 128, fill=BG, stroke="none", arc=22)]
-    n.append(ellipse("ring", 14, 14, 100, 100, CYAN, "#2C363C", 6))
-    n.append(txt("t", "CR", 14, 22, 100, 84, 46, "#00343A", bold=True, align="center", mono=False))
+    n.append(ellipse("disc", 12, 12, 104, 104, CYAN, "none"))
+    for i, h in enumerate([22, 44, 66, 44, 22]):
+        x = 36 + i * 13
+        n.append(rect(f"b{i}", x, 64 - h // 2, 9, h, fill="#00343A", stroke="none", arc=50))
     diagram("icon", n, width=128, height=128, background=BG)
 
 

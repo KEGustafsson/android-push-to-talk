@@ -44,8 +44,8 @@ test("the AAD is the header with the ttl zeroed and nothing else", () => {
 });
 
 test("hello encodes and decodes, cutting the name to 32 UTF-8 bytes on a character boundary", () => {
-  const h = P.encodeHello({ name: "Arabella", transports: P.Transports.LAN, ttl: 4 });
-  assert.deepEqual(P.decodeHello(h), { name: "Arabella", transports: 1, ttl: 4 });
+  const h = P.encodeHello({ name: "Sirius", transports: P.Transports.LAN, ttl: 4 });
+  assert.deepEqual(P.decodeHello(h), { name: "Sirius", transports: 1, ttl: 4 });
   const aUmlaut = String.fromCharCode(0xe4); // two UTF-8 bytes
   const long = P.encodeHello({ name: aUmlaut.repeat(40), transports: 7, ttl: 1 });
   assert.equal(long.length, 4 + 32);

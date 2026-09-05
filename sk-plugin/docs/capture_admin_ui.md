@@ -10,7 +10,7 @@ plugin installed, not drawings. To take them again after a change, on a machine 
    ```
    `defaults.json` with the vessel name, `settings.json` with `"security": {"strategy": ""}` (no
    login on a scratch server), and `plugin-config-data/signalk-crewradio.json` with
-   `{"enabled": true, "configuration": {"channelKey": "...", "nodeName": "Arabella"}}`.
+   `{"enabled": true, "configuration": {"channelKey": "...", "nodeName": "Sirius"}}`.
    If `/admin/` answers "Could not handle admin ui root request", the server looks for
    `@signalk/server-admin-ui` inside its own `node_modules`; copy the hoisted package there.
 2. Start it: `node node_modules/signalk-server/bin/signalk-server -c ./config`.

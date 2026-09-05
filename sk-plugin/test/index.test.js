@@ -39,7 +39,7 @@ function fakeApp() {
     setPluginStatus: (m) => app.status.push(m),
     setPluginError: (m) => app.errors.push(`plugin error: ${m}`),
     handleMessage: (id, delta) => app.deltas.push({ id, delta }),
-    getSelfPath: (p) => (p === "name" ? "Arabella" : undefined),
+    getSelfPath: (p) => (p === "name" ? "Sirius" : undefined),
     onPropertyValues: (name, cb) => { app.props[name] = cb; return () => { delete app.props[name]; }; },
     subscriptionmanager: { subscribe: (sub, unsubs, onErr, cb) => { app.subs.push({ sub, cb }); unsubs.push(() => app.subs.pop()); } },
   };
@@ -62,7 +62,7 @@ test("metadata: id, schema with the key required, password widget, vessel name a
   assert.equal(p.id, "signalk-crewradio");
   const schema = p.schema();
   assert.deepEqual(schema.required, ["channelKey"]);
-  assert.match(schema.properties.nodeName.description, /Arabella/);
+  assert.match(schema.properties.nodeName.description, /Sirius/);
   assert.equal(schema.properties.satelliteHost.default, "127.0.0.1");
   assert.equal(p.uiSchema().channelKey["ui:widget"], "password");
 });
@@ -93,7 +93,7 @@ test("on start it joins the channel, sends hellos, publishes the roster and repo
   assert.equal(h.codec, P.Codec.HELLO);
   assert.equal(h.ttl, 3);
   const hello = P.decodeHello(crypto.open(P.aadOf(link.sent[0]), link.sent[0].subarray(P.HEADER)));
-  assert.equal(hello.name, "Arabella");
+  assert.equal(hello.name, "Sirius");
   assert.equal(lastValue(app, "communication.crewradio.online"), 0);
   assert.match(app.status.at(-1), /0 online/);
   assert.match(app.status.at(-1), /assistant not connected/);
