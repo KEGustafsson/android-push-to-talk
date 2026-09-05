@@ -137,10 +137,12 @@ def announcement():
 # ---------------------------------------------------------------- 2. how it fits (light)
 
 def how_it_fits():
-    box = lambda nid, label, x, y, w, h, fill, stroke, size=14, bold=False: rect(nid, x, y, w, h, fill=fill, stroke=stroke, arc=10, width=1.5, label=label, color=INK, size=size, mono=False, bold=bold)
+    def box(nid, label, x, y, w, h, fill, stroke, size=14, bold=False):
+        return rect(nid, x, y, w, h, fill=fill, stroke=stroke, arc=10, width=1.5, label=label, color=INK, size=size, mono=False, bold=bold)
     edge = "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeColor=#455A64;strokeWidth=2;"
     dashed = "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=none;dashed=1;strokeColor=#78909C;strokeWidth=2;"
-    cap = lambda nid, label, x, y, w, h=22, size=12, align="center": txt(nid, label, x, y, w, h, size, INK_MUTED, mono=False, align=align)
+    def cap(nid, label, x, y, w, h=22, size=12, align="center"):
+        return txt(nid, label, x, y, w, h, size, INK_MUTED, mono=False, align=align)
     n = [rect("bg", 0, 0, W, H, fill=LIGHT_BG, stroke="none", arc=0)]
     n.append(txt("title", "How signalk-crewradio fits in", 60, 36, 900, 44, 30, INK, bold=True, mono=False))
     n.append(txt("sub", "The Signal K server becomes one more node on the crew's channel, and a speaker for the boat's voice assistant.", 60, 82, 1100, 30, 16, INK_MUTED, mono=False))
@@ -161,7 +163,7 @@ def how_it_fits():
     n.append(cap("srvpaths", "publishes communication.crewradio.online · nodes · talking", 460, 668, 380, 22, 12))
 
     # right: the crew, on the boat network (the server may be on the wired side of the same router)
-    n.append(("wlan", "", 910, 150, 330, 560, f"rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#0288D1;strokeWidth=1.5;dashed=1;"))
+    n.append(("wlan", "", 910, 150, 330, 560, "rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#0288D1;strokeWidth=1.5;dashed=1;"))
     n.append(txt("wlant", "boat network: LAN / WLAN", 930, 158, 290, 30, 16, "#0288D1", bold=True, mono=False))
     for i, (name, y) in enumerate([("Skipper's phone", 220), ("Mate's phone", 380), ("Deck phone", 540)]):
         n.append(box(f"p{i}", name + "\nCrew Radio app", 950, y, 250, 90, "#E1F5FE", "#0288D1", 14, True))

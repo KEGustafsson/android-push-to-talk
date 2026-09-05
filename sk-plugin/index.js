@@ -69,6 +69,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
       link.on("error", (e) => {
         app.error(`Network link: ${e.message}`);
         scheduleReopen();
+        status();                                 // the roster is gone with the link; say so now, not at the next event
       });
       try {
         const where = await link.open();

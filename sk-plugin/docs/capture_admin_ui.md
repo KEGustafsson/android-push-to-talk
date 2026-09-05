@@ -5,7 +5,7 @@ plugin installed, not drawings. To take them again after a change, on a machine 
 
 1. A scratch server, apart from any real installation:
    ```sh
-   mkdir sk && cd sk && npm init -y && npm install signalk-server@latest
+   mkdir sk && cd sk && npm init -y && npm install signalk-server@2.31.1   # the version in the checked-in pictures
    mkdir config && cd config && npm init -y && npm install /path/to/android-push-to-talk/sk-plugin
    ```
    `defaults.json` with the vessel name, `settings.json` with `"security": {"strategy": ""}` (no
@@ -14,9 +14,11 @@ plugin installed, not drawings. To take them again after a change, on a machine 
    If `/admin/` answers "Could not handle admin ui root request", the server looks for
    `@signalk/server-admin-ui` inside its own `node_modules`; copy the hoisted package there.
 2. Start it: `node node_modules/signalk-server/bin/signalk-server -c ./config`.
-3. Give it something to show: two channel nodes from `tools/cli.js roster --name Skipper` and
-   `--name Mate`, and `tools/cli.js send --to 127.0.0.1:10701 --wav clip.wav` so the status line
-   reads "assistant connected · announcing" while the picture is taken.
+3. Give it something to show: two channel nodes,
+   `node tools/cli.js roster --key KEY --name Skipper --seconds 90` and the same with `--name Mate`
+   (KEY as in the plugin's config; `--iface` if the machine has several adapters), and
+   `node tools/cli.js send --to 127.0.0.1:10701 --wav clip.wav` so the status line reads
+   "assistant connected · announcing" while the picture is taken.
 4. Capture at 1280 x 800 with a headless Chromium browser over the DevTools protocol (the
    `--screenshot` flag proved unreliable on Windows):
    `http://localhost:3000/admin/#/serverConfiguration/plugins/signalk-crewradio` and

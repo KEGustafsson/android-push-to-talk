@@ -190,6 +190,21 @@ test("a network link that cannot open is reported and retried; the satellite sti
   }
 });
 
+test("a link that dies after start reports it in the status at once and clears the roster", async () => {
+  FakeLink.last = undefined;
+  const app = fakeApp();
+  const p = plugin(app, { LanLink: FakeLink });
+  p.start({ channelKey: KEY, satellitePort: 0 });
+  await p.satelliteListening;
+  await until(() => FakeLink.last && FakeLink.last.sent.length > 0);
+  const link = FakeLink.last;
+  link.emit("error", new Error("network is unreachable"));
+  assert.match(app.errors.at(-1), /network is unreachable/);
+  assert.match(app.status.at(-1), /network link down/);
+  assert.equal(link.closed, true);
+  p.stop();
+});
+
 test("a non-loopback satellite bind without an allowlist falls back to loopback and says so", async () => {
   FakeLink.last = undefined;
   const app = fakeApp();
