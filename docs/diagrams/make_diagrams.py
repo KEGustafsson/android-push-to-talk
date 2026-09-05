@@ -183,7 +183,7 @@ def status_screen(p, x, y):
 
 
 def settings_screen(p, x, y):
-    n = [frame(p + "f", x, y)]
+    n = [frame(p + "f", x, y, h=880)]
     n.append(rect(p + "bar", x + 2, y + 2, 356, 56, fill="#161C21", stroke="#161C21", arc=0))
     n.append(txt(p + "back", "←", x + 18, y + 12, 30, 36, 20, TEXT, align="center"))
     n.append(txt(p + "ttl", "Settings", x + 56, y + 12, 200, 36, 20, TEXT, mono=False))
@@ -191,7 +191,7 @@ def settings_screen(p, x, y):
         ("cat", "Me", None), ("row", "My name", "Deckhand"),
         ("cat", "Channel", None), ("row", "Channel name", "CREW RADIO"),
         ("cat", "Talking", None),
-        ("sw", "Full duplex", "Hold the big button to talk; others are muted while you hold it.", False),
+        ("sw", "Full duplex", "Off: hold to talk, others muted meanwhile. On: tap to toggle, everyone heard at once.", False),
         ("row", "Talk button", "Headset button and volume keys"),
         ("row", "Audio output", "Headset when connected; else earpiece at the ear, loudspeaker otherwise"),
         ("sw", "Voice keys the mic", "With a Bluetooth headset: just speak.", False),
@@ -207,14 +207,16 @@ def settings_screen(p, x, y):
             n.append(txt(p + f"i{i}", it[1], x + 60, cy, 200, 20, 12, CYAN, mono=False))
             cy += 30
         elif kind == "row":
+            lines = 1 + len(it[2]) // 44
             n.append(txt(p + f"i{i}", it[1], x + 60, cy, 260, 22, 15, TEXT, mono=False))
-            n.append(txt(p + f"s{i}", it[2], x + 60, cy + 22, 260, 18, 11, MUTED, mono=False))
-            cy += 54
+            n.append(txt(p + f"s{i}", it[2], x + 60, cy + 22, 260, 16 * lines + 4, 11, MUTED, mono=False))
+            cy += 34 + 16 * lines + 8
         else:
+            lines = 1 + len(it[2]) // 40
             n.append(txt(p + f"i{i}", it[1], x + 60, cy, 220, 22, 15, TEXT, mono=False))
-            n.append(txt(p + f"s{i}", it[2], x + 60, cy + 22, 220, 18, 10, MUTED, mono=False))
-            n += toggle(p + f"g{i}", x + 288, cy + 10, it[3])
-            cy += 54
+            n.append(txt(p + f"s{i}", it[2], x + 60, cy + 22, 220, 15 * lines + 4, 10, MUTED, mono=False))
+            n += toggle(p + f"g{i}", x + 288, cy + 8 + 7 * lines, it[3])
+            cy += 34 + 15 * lines + 8
     return n
 
 
@@ -230,7 +232,7 @@ diagram("screens", "The screens", nodes=(
 diagram("screen-main", "Main screen", nodes=main_screen("a", 20, 20, "on"), edges=[], width=400, height=800)
 diagram("screen-on-air", "On air", nodes=main_screen("a", 20, 20, "air"), edges=[], width=400, height=800)
 diagram("screen-status", "Status screen", nodes=status_screen("s", 20, 20), edges=[], width=400, height=800)
-diagram("screen-settings", "Settings screen", nodes=settings_screen("s", 20, 20), edges=[], width=400, height=800)
+diagram("screen-settings", "Settings screen", nodes=settings_screen("s", 20, 20), edges=[], width=400, height=920)
 
 
 # ================================================================ flowcharts
@@ -255,8 +257,8 @@ diagram("architecture", "How the app is built", nodes=[
     ("mix", "Mixer" + NL + "one queue per talker," + NL + "loss concealment, cue tones", 800, 480, 190, 70, AUDIO),
     ("play", "Speaker, earpiece or headset" + NL + "(AudioPlayback + AudioRoute)", 800, 580, 190, 60, AUDIO),
     ("n1", "Every phone is the same: there is no server and no master. Each phone sends its own frames on every"
-     + NL + "transport it has on, and forwards what it hears to its other transports (relay), so a phone that has"
-     + NL + "both Wi-Fi Aware and Bluetooth bridges the two.", 40, 660, 900, 60, NOTE),
+     + NL + "transport it has on and, with Relay on (the default) and hops remaining, forwards what it hears to its"
+     + NL + "other transports, so a phone that has both Wi-Fi Aware and Bluetooth bridges the two.", 40, 660, 900, 60, NOTE),
 ], edges=[
     ("ui", "svc", "binds while visible", EDGE),
     ("st", "eng", "polls once a second", EDGE_DASH + "exitX=1;exitY=0.5;entryX=0;entryY=0.3;"),
@@ -281,7 +283,7 @@ diagram("packet-flow", "What happens to a received packet", nodes=[
     ("t", "A packet arrives on any transport", 40, 20, 500, 30, TITLE),
     ("s", "packet", 40, 70, 100, 50, START),
     ("d1", "our own?", 200, 60, 120, 70, DECISION),
-    ("d2", "seen before?" + NL + "(sender + number)", 370, 60, 140, 70, DECISION),
+    ("d2", "seen before?" + NL + "(kind, sender, number)", 370, 60, 140, 70, DECISION),
     ("r", "relay: forward to every other transport" + NL + "and link, hop count minus one" + NL + "(if relay is on and hops remain)",
      560, 60, 260, 70, STEP),
     ("drop", "drop", 210, 170, 100, 50, END),
@@ -349,8 +351,9 @@ diagram("audio-route", "Where the voice goes", nodes=[
     ("ep", "Earpiece" + NL + "+ voice keys the mic" + NL + "+ screen dark", 780, 380, 150, 70, END),
     ("sp2", "Loudspeaker" + NL + "+ the button", 780, 470, 150, 50, END),
     ("ep2", "Earpiece always" + NL + "(voice keys the mic at the ear)", 200, 480, 200, 60, END),
-    ("n", "The route follows changes live: connect a headset and the voice moves to it,"
-     + NL + "lift the phone to your ear and it becomes a phone call, put it down and it is a radio again.", 40, 570, 640, 50, NOTE),
+    ("n", "With the default setting the route follows changes live: connect a headset and the voice moves to it,"
+     + NL + "lift the phone to your ear and it becomes a phone call, put it down and it is a radio again."
+     + NL + "The two forced settings ignore headsets and the ear.", 40, 570, 700, 60, NOTE),
 ], edges=[
     ("s", "d0", "", EDGE),
     ("d0", "sp", "always the loudspeaker", EDGE),
@@ -387,13 +390,14 @@ diagram("links", "One app, every link", nodes=[
     ("p", "Your phone" + NL + "Crew Radio", 340, 200, 160, 70, PHONE),
     ("l1", "WLAN" + NL + "the boat's router or a hotspot:" + NL + "everyone on the same network", 40, 80, 220, 70, NET),
     ("l2", "Wi-Fi Aware" + NL + "phone to phone, no router," + NL + "Wi-Fi range", 40, 320, 220, 70, NET),
-    ("l3", "Bluetooth" + NL + "phone to phone, close range," + NL + "any Android phone", 580, 80, 220, 70, NET),
-    ("l4", "Relay" + NL + "what one phone hears on one link" + NL + "it repeats on its other links", 580, 320, 220, 70, ENGINE),
-    ("n", "Tick the links you have. Phones find each other, no server, no account, no internet."
+    ("l3", "Bluetooth" + NL + "phone to phone, close range," + NL + "any Android 10+ phone", 580, 80, 220, 70, NET),
+    ("l4", "Relay (a setting, on by default, not a link):" + NL + "what this phone hears on one link it repeats on its other links,"
+     + NL + "up to the hop limit, so it bridges them", 300, 320, 480, 60, ENGINE + "dashed=1;"),
+    ("n", "Tick the links you have (WLAN, Wi-Fi Aware, Bluetooth). Phones find each other, no server, no account, no internet."
      + NL + "Lose one link and the others carry on; a phone in the middle bridges the rest.", 40, 440, 760, 40, NOTE),
 ], edges=[
     ("p", "l1", "", EDGE_BI + "strokeColor=#7B1FA2;"),
     ("p", "l2", "", EDGE_BI + "strokeColor=#7B1FA2;"),
     ("p", "l3", "", EDGE_BI + "strokeColor=#0288D1;"),
-    ("p", "l4", "", EDGE_BI + "strokeColor=#F9A825;"),
+    ("p", "l4", "", EDGE_DASH + "strokeColor=#F9A825;endArrow=none;"),
 ], width=860, height=520)

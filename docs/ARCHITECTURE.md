@@ -58,8 +58,9 @@ flags, hop budget). Audio frames and hellos number themselves independently per 
 
 ![What happens to a received packet](images/packet-flow.png)
 
-Relay is application-level flooding with two brakes: a seen-cache keyed by (sender, number)
-drops copies that arrive by two paths, and the ttl (clamped to this phone's own hop limit,
+Relay is application-level flooding with two brakes: a seen-cache keyed by (sender, number),
+one cache per packet kind because audio and hellos number themselves independently, drops
+copies that arrive by two paths, and the ttl (clamped to this phone's own hop limit,
 then decremented in place) stops circulation. A packet is forwarded to every *other*
 transport, and, on transports with several links (Bluetooth, Aware), to the other links of the
 same transport. `LanTransport` sends every frame twice, to the multicast group and to the
