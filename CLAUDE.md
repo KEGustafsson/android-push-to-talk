@@ -120,6 +120,17 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Wi-Fi Aware: every node publishes and subscribes; lower senderId initiates the
   data path (one link per pair). Publisher uses accept-any on API 31+.
 
+## Security hygiene
+- `SECURITY.md` (disclosure route: GitHub private vulnerability reporting, enabled) and
+  `docs/SECURITY.md` (threat model, CRA Annex I mapping). Keep both current when the wire format
+  or the transports change.
+- CI: actions pinned to commit SHAs (Dependabot bumps them), CodeQL on push/PR/weekly, the
+  `release` job attaches an SBOM (`gradlew sbom`, CycloneDX 1.5 from the release runtime
+  classpath, no plugin) plus a SHA-256 and a build-provenance attestation to every Release.
+- Engine: `Packet.MAX_SIZE` drops oversized packets unread; `RateLimiter` (pure, tested) drops a
+  sender beyond 75 packets/s (burst 150) before relay, decoder or mixer see it; both count as
+  `rejected` on the Status screen.
+
 ## Documentation
 - `README.md` is written for the crew (install, quick start, talk keys, headsets, settings);
   `docs/ARCHITECTURE.md` for developers. The diagrams and the screen mock-ups are generated:

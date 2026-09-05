@@ -21,6 +21,8 @@ import java.nio.ByteBuffer
 object Packet {
     const val HEADER = 13
     const val VERSION = 2
+    /** Largest packet a peer may send: a PCM frame with header is 653 bytes, Opus far less. Anything bigger is dropped unread. */
+    const val MAX_SIZE = 1024
 
     /** What the payload is. PCM and OPUS carry audio; HELLO is the roster heartbeat. */
     enum class Codec(val id: Int) {
@@ -47,7 +49,7 @@ object Packet {
 
     /** Returns null for anything that is not a well-formed v2 packet with a non-empty payload. */
     fun parse(p: ByteArray): Header? {
-        if (p.size <= HEADER || p[0] != 'P'.code.toByte() || p[1] != 'T'.code.toByte()) return null
+        if (p.size <= HEADER || p.size > MAX_SIZE || p[0] != 'P'.code.toByte() || p[1] != 'T'.code.toByte()) return null
         if (p[2].toInt() != VERSION) return null
         val codec = Codec.fromId(p[3].toInt() and 0xFF) ?: return null
         val ttl = p[4].toInt() and 0xFF

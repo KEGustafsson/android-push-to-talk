@@ -1,4 +1,5 @@
 import java.io.ByteArrayOutputStream
+import java.time.Instant
 
 plugins {
     id("com.android.application")
@@ -70,6 +71,42 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+}
+
+/**
+ * `gradlew sbom` writes app/build/reports/bom.json: a CycloneDX 1.5 software bill of materials
+ * of everything on the release runtime classpath, attached to every Release. Written here
+ * rather than by a plugin so the build itself pulls in nothing extra.
+ */
+tasks.register("sbom") {
+    val out = layout.buildDirectory.file("reports/bom.json")
+    outputs.file(out)
+    outputs.upToDateWhen { false }         // timestamped and classpath-dependent: never reuse a stale one
+    doLast {
+        val comps = configurations.getByName("releaseRuntimeClasspath").resolvedConfiguration.resolvedArtifacts
+            .map { it.moduleVersion.id }
+            .distinctBy { "${it.group}:${it.name}:${it.version}" }
+            .sortedBy { "${it.group}:${it.name}" }
+            .joinToString(",\n") {
+                """    {"type": "library", "group": "${it.group}", "name": "${it.name}", "version": "${it.version}", "purl": "pkg:maven/${it.group}/${it.name}@${it.version}", "bom-ref": "pkg:maven/${it.group}/${it.name}@${it.version}"}"""
+            }
+        val version = android.defaultConfig.versionName
+        out.get().asFile.apply { parentFile.mkdirs() }.writeText(
+            """{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "timestamp": "${Instant.now()}",
+    "component": {"type": "application", "name": "CrewRadio", "version": "$version", "bom-ref": "pkg:generic/CrewRadio@$version"}
+  },
+  "components": [
+$comps
+  ]
+}
+"""
+        )
+    }
 }
 
 /** `gradlew -q printVersion` prints the versionName, for the release workflow to name the APK and the tag. */

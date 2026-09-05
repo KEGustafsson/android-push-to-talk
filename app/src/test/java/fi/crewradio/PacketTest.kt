@@ -28,6 +28,7 @@ class PacketTest {
         assertNull("bad magic", Packet.parse(good.copyOf().also { it[0] = 'X'.code.toByte() }))
         assertNull("old version", Packet.parse(good.copyOf().also { it[2] = 1 }))
         assertNull("unknown codec", Packet.parse(good.copyOf().also { it[3] = 9 }))
+        assertNull("oversized", Packet.parse(good.copyOf(Packet.MAX_SIZE + 1)))
     }
 
     @Test

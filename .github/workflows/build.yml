@@ -8,7 +8,9 @@ name: Build
 # repository secrets and attaches CrewRadio-<version>.apk to a GitHub Release tagged v<version>.
 # The version is the commit count on main (see app/build.gradle.kts), so nobody bumps numbers.
 # Secrets: CREWRADIO_KEYSTORE_BASE64 (the .keystore file, base64), CREWRADIO_KEYSTORE_PASSWORD,
-# CREWRADIO_KEY_ALIAS, CREWRADIO_KEY_PASSWORD.
+# CREWRADIO_KEY_ALIAS, CREWRADIO_KEY_PASSWORD; repository variable CREWRADIO_CERT_SHA256 (the
+# release certificate's SHA-256, checked before anything is published). Without them the
+# release job fails; it never publishes a debug-signed APK.
 
 on:
   push:
@@ -29,17 +31,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0          # the version is the commit count
           persist-credentials: false
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       - name: Unit tests and APK (debug-signed)
         run: |
@@ -51,13 +53,13 @@ jobs:
 
       - name: Test report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unit-test-results
           path: app/build/test-results/testDebugUnitTest/*.xml
           if-no-files-found: ignore
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: CrewRadio-${{ env.VERSION }}-debugsigned
           path: CrewRadio-${{ env.VERSION }}-debugsigned.apk
@@ -68,44 +70,73 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write        # build provenance attestation
+      attestations: write
     env:
       KEYSTORE_BASE64: ${{ secrets.CREWRADIO_KEYSTORE_BASE64 }}
       CREWRADIO_KEYSTORE_PASSWORD: ${{ secrets.CREWRADIO_KEYSTORE_PASSWORD }}
       CREWRADIO_KEY_ALIAS: ${{ secrets.CREWRADIO_KEY_ALIAS }}
       CREWRADIO_KEY_PASSWORD: ${{ secrets.CREWRADIO_KEY_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
       - name: Release keystore from secrets
-        if: env.KEYSTORE_BASE64 != ''
         run: |
+          # Fail closed: a Release is never published with the debug key.
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$CREWRADIO_KEYSTORE_PASSWORD" ]; then
+            echo "::error::CREWRADIO_KEYSTORE_BASE64 / CREWRADIO_KEYSTORE_PASSWORD secrets are not set; refusing to publish a release"
+            exit 1
+          fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
           echo "CREWRADIO_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
 
-      - name: Signed release APK
+      - name: Signed release APK and SBOM
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease
+          ./gradlew --no-daemon assembleRelease sbom
           VERSION=$(./gradlew --no-daemon -q printVersion | tail -1)
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           cp app/build/outputs/apk/release/app-release.apk "CrewRadio-$VERSION.apk"
+          cp app/build/reports/bom.json "CrewRadio-$VERSION.sbom.cdx.json"
+          sha256sum "CrewRadio-$VERSION.apk" > "CrewRadio-$VERSION.apk.sha256"
+
+      - name: Verify the APK is signed with the release certificate
+        env:
+          EXPECTED_CERT_SHA256: ${{ vars.CREWRADIO_CERT_SHA256 }}
+        run: |
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          ACTUAL=$("$APKSIGNER" verify --print-certs "CrewRadio-$VERSION.apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr 'A-F' 'a-f')
+          echo "signer certificate sha256: $ACTUAL"
+          if [ -z "$EXPECTED_CERT_SHA256" ]; then echo "::error::repository variable CREWRADIO_CERT_SHA256 is not set"; exit 1; fi
+          if [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then echo "::error::APK is not signed with the crew's release certificate"; exit 1; fi
+
+      - name: Build provenance attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: CrewRadio-${{ env.VERSION }}.apk
 
       - name: GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: v${{ env.VERSION }}
           name: Crew Radio ${{ env.VERSION }}
           body: |
             Built from ${{ github.sha }}. Every phone on the crew must run the same version.
             Install: open this page on the phone, download the APK, allow the install.
-          files: CrewRadio-${{ env.VERSION }}.apk
+            The .sha256 file is the APK's checksum, the .sbom.cdx.json its software bill of
+            materials (CycloneDX), and the build carries a signed provenance attestation
+            (`gh attestation verify CrewRadio-<version>.apk --repo KEGustafsson/android-push-to-talk`).
+          files: |
+            CrewRadio-${{ env.VERSION }}.apk
+            CrewRadio-${{ env.VERSION }}.apk.sha256
+            CrewRadio-${{ env.VERSION }}.sbom.cdx.json
