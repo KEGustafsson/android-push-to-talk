@@ -120,6 +120,12 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Wi-Fi Aware: every node publishes and subscribes; lower senderId initiates the
   data path (one link per pair). Publisher uses accept-any on API 31+.
 
+## Documentation
+- `README.md` is written for the crew (install, quick start, talk keys, headsets, settings);
+  `docs/ARCHITECTURE.md` for developers. The diagrams and the screen mock-ups are generated:
+  `python docs/diagrams/make_diagrams.py` writes the `.drawio` files, draw.io desktop exports the
+  PNGs (command at the top of the script). No real screenshots in the repo: they carry device names.
+
 ## Conventions
 - Keep transports symmetrical (every phone is both server and client) — no
   designated master, the app must survive any phone dropping out.
