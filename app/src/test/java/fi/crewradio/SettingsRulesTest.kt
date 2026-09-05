@@ -1,5 +1,6 @@
 package fi.crewradio
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,6 +34,18 @@ class SettingsRulesTest {
         assertFalse(SettingsRules.validPort("1023"))
         assertFalse(SettingsRules.validPort("65536"))
         assertFalse(SettingsRules.validPort("port"))
+    }
+
+    @Test
+    fun generatedChannelKeysAreValidReadableAndDistinct() {
+        val r = java.util.Random(42)
+        val keys = (1..50).map { SettingsRules.generateChannelKey(r) }
+        for (k in keys) {
+            assertTrue(k, SettingsRules.validPassphrase(k))
+            assertTrue(k, Regex("[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}").matches(k))
+            assertFalse(k, k.any { it in "01oOlI" })
+        }
+        assertEquals(50, keys.toSet().size)
     }
 
     @Test

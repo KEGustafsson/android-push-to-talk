@@ -234,7 +234,7 @@ class MainActivity : AppCompatActivity() {
         val list = mutableListOf<Transport>()
         if (tileOn(Prefs.KEY_USE_LAN)) list += LanTransport(ctx, prefs.group, prefs.port)
         if (tileOn(Prefs.KEY_USE_BT)) list += BluetoothTransport(ctx, pairedDevices.getOrNull(btPeerIndex - 1))
-        if (tileOn(Prefs.KEY_USE_AWARE)) list += WifiAwareTransport(ctx, s.engine.senderId, prefs.passphrase)
+        if (tileOn(Prefs.KEY_USE_AWARE)) list += WifiAwareTransport(ctx, s.engine.senderId, prefs.channelKey)
         if (list.isEmpty()) {
             Toast.makeText(this, R.string.pick_transport, Toast.LENGTH_SHORT).show()
             syncUi()
@@ -262,6 +262,7 @@ class MainActivity : AppCompatActivity() {
         }
         e.headsetAsCall = prefs.headsetAsCall
         e.headsetVox = prefs.headsetVox
+        e.channelKey = prefs.channelKey
         service?.cueTones = prefs.cueTones
         service?.refreshHardwareButtons()
     }

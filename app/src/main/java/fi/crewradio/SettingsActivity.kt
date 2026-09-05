@@ -37,7 +37,9 @@ class SettingsActivity : AppCompatActivity() {
             rule(Prefs.KEY_NAME, "My name: up to 32 bytes; leave empty to use the name of this phone") { SettingsRules.validName(it) }
             rule(Prefs.KEY_GROUP, "Must be an IPv4 multicast address, 224.0.0.0 to 239.255.255.255") { SettingsRules.validGroup(it) }
             rule(Prefs.KEY_PORT, "Port must be 1024 to 65535", numeric = true) { SettingsRules.validPort(it) }
-            rule(Prefs.KEY_PASSPHRASE, "8 to 63 plain ASCII characters, the same on every phone") { SettingsRules.validPassphrase(it) }
+            rule(Prefs.KEY_CHANNEL_KEY, "Channel key: 8 to 63 plain characters, the same on every phone") { SettingsRules.validPassphrase(it) }
+            // A phone that has never joined has no key yet: make one now so the screen can show it.
+            findPreference<EditTextPreference>(Prefs.KEY_CHANNEL_KEY)?.text = Prefs(requireContext()).channelKey
             rule(Prefs.KEY_HOPS, "Hop limit must be 1 to 16", numeric = true) { SettingsRules.validHops(it) }
         }
 

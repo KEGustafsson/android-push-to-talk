@@ -18,6 +18,7 @@ class PacketTest {
         assertEquals(77, h.seq)
         assertEquals(Packet.Codec.OPUS, h.codec)
         assertEquals(4, h.ttl)
+        assertEquals(4, h.hops)
         assertArrayEquals(payload, p.copyOfRange(Packet.HEADER, p.size))
     }
 
@@ -29,6 +30,30 @@ class PacketTest {
         assertNull("old version", Packet.parse(good.copyOf().also { it[2] = 1 }))
         assertNull("unknown codec", Packet.parse(good.copyOf().also { it[3] = 9 }))
         assertNull("oversized", Packet.parse(good.copyOf(Packet.MAX_SIZE + 1)))
+    }
+
+    @Test
+    fun theOriginHopBudgetIsAuthenticatedButTheTtlIsNot() {
+        val crypto = ChannelCrypto.forChannelKey("north-star-2026")
+        val header = Packet.encode(9, 8, Packet.Codec.OPUS, 4, ByteArray(0))
+        val packet = header + crypto.seal(Packet.aadOf(header), payload)
+        Packet.setTtl(packet, 255)                                       // a relay, or an attacker, rewrites the ttl
+        val h = Packet.parse(packet)!!
+        assertEquals(255, h.ttl)
+        assertEquals(4, h.hops)                                          // the budget the sender stamped survives
+        assertArrayEquals(payload, crypto.open(Packet.aadOf(packet), packet, Packet.HEADER, packet.size - Packet.HEADER))
+        packet[5] = 200.toByte()                                         // but the budget itself cannot be changed
+        assertNull(crypto.open(Packet.aadOf(packet), packet, Packet.HEADER, packet.size - Packet.HEADER))
+    }
+
+    @Test
+    fun aadIsTheHeaderWithoutTheTtl() {
+        val a = Packet.aadOf(Packet.encode(9, 8, Packet.Codec.OPUS, 4, payload))
+        val b = Packet.aadOf(Packet.encode(9, 8, Packet.Codec.OPUS, 1, payload, hops = 4))   // same budget, ttl already decremented
+        assertEquals(Packet.HEADER, a.size)
+        assertArrayEquals(a, b)
+        assertEquals(0, a[4].toInt())
+        assertEquals(Packet.VERSION, a[2].toInt())
     }
 
     @Test

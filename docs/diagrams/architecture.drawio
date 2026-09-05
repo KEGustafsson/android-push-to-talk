@@ -8,7 +8,7 @@ who is talking, the voice gate" style="rounded=1;whiteSpace=wrap;html=1;fontFami
 (AudioCapture)
 16 kHz, 20 ms frames" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fillColor=#FBE9E7;strokeColor=#D84315;" vertex="1" parent="1"><mxGeometry x="40" y="400" width="170" height="70" as="geometry"/></mxCell><mxCell id="enc" value="Opus encoder
 (platform codec)" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fillColor=#FBE9E7;strokeColor=#D84315;" vertex="1" parent="1"><mxGeometry x="40" y="500" width="170" height="60" as="geometry"/></mxCell><mxCell id="pk" value="Packet
-13-byte header +
+14-byte header +
 Opus/PCM frame, or a hello
 (roster heartbeat)" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fillColor=#ECEFF1;strokeColor=#455A64;" vertex="1" parent="1"><mxGeometry x="280" y="460" width="170" height="80" as="geometry"/></mxCell><mxCell id="lan" value="WLAN
 UDP multicast + broadcast" style="rounded=1;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontSize=12;fillColor=#F3E5F5;strokeColor=#7B1FA2;" vertex="1" parent="1"><mxGeometry x="530" y="400" width="160" height="60" as="geometry"/></mxCell><mxCell id="bt" value="Bluetooth

@@ -59,6 +59,14 @@ class RateLimiterTest {
     }
 
     @Test
+    fun unauthenticatedPacketsNeverChargeASender() {
+        val r = RateLimiter(perSecond = 10.0, burst = 10.0, globalPerSecond = 1e6, globalBurst = 1e6)
+        repeat(100_000) { assertTrue(r.allowGlobal(0L)) }        // a flood claiming to be sender 1, before the tag check
+        repeat(10) { assertTrue(r.allowSender(1, 0L)) }           // sender 1 still has its whole burst
+        assertFalse(r.allowSender(1, 0L))
+    }
+
+    @Test
     fun anIdleSenderIsForgottenAndStartsFresh() {
         val r = RateLimiter(perSecond = 10.0, burst = 10.0, forgetMs = 1000)
         repeat(10) { r.allow(1, 0L) }

@@ -40,9 +40,17 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   SharedPreferences; `Prefs` reads them with validated fallbacks and `SettingsRules` holds the
   pure, unit-tested validation. Duplex mode, relay, codec, name and hop limit are pushed into
   the engine on every bind and resume (the settings, not the engine, are the source of truth);
-  group/port/passphrase are constructor arguments of the transports, so they need a reconnect.
+  group/port/channel key are constructor arguments of the transports, so they need a reconnect.
   Sample rate is deliberately not a setting: 16 kHz is baked into the Opus path and the decimator.
-- `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.
+- `Packet`: 14-byte header `'P' 'T' | version=3 | codec | ttl | hops | senderId int32 | seq int32`,
+  followed by `nonce(12) | ciphertext | tag(16)` (`ChannelCrypto.seal` prepends the nonce). The
+  payload is AES-256-GCM under the channel key (`ChannelCrypto`, key by PBKDF2, random nonce per
+  packet, the header with the ttl byte zeroed as AAD). `hops` is the sender's original budget,
+  authenticated: a relay clamps ttl to min(ttl, hops, own limit). The engine charges the global
+  rate budget, opens the packet, then charges the sender's budget and goes on to the seen-cache;
+  anything that fails is `rejected`. `Prefs.channelKey` is generated at
+  random on first use (no default) and doubles as the Aware passphrase; `docs/SECURITY.md` has the
+  threat model.
   Codec 0 = PCM16LE frame, 1 = Opus packet, 2 = `Hello` roster heartbeat (no audio; older
   builds drop it as unknown, so it needed no version bump). Receivers decode per packet, so codecs can mix.
   `seq` is per sender and per kind: audio frames count in one sequence, hellos in another.
@@ -120,6 +128,10 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Wi-Fi Aware: every node publishes and subscribes; lower senderId initiates the
   data path (one link per pair). Publisher uses accept-any on API 31+.
 
+## Licence
+- EUPL-1.2 (`LICENSE`, SPDX `EUPL-1.2`), declared in the README and in the SBOM's metadata. Keep
+  the licence when adding files; the AndroidX/Material dependencies are Apache-2.0, compatible.
+
 ## Security hygiene
 - `SECURITY.md` (disclosure route: GitHub private vulnerability reporting, enabled) and
   `docs/SECURITY.md` (threat model, CRA Annex I mapping). Keep both current when the wire format
@@ -127,9 +139,12 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - CI: actions pinned to commit SHAs (Dependabot bumps them), CodeQL on push/PR/weekly, the
   `release` job attaches an SBOM (`gradlew sbom`, CycloneDX 1.5 from the release runtime
   classpath, no plugin) plus a SHA-256 and a build-provenance attestation to every Release.
-- Engine: `Packet.MAX_SIZE` drops oversized packets unread; `RateLimiter` (pure, tested) drops a
-  sender beyond 75 packets/s (burst 150) before relay, decoder or mixer see it; both count as
-  `rejected` on the Status screen.
+- Engine: `Packet.MAX_SIZE` drops oversized packets unread; `RateLimiter` (pure, tested) charges a
+  global bucket (400/s, burst 800) and then a per-sender one (75/s, burst 150, at most 128 senders,
+  idle ones swept) before the packet is opened, relayed, decoded or mixed; the AEAD check comes right
+  after. All of it counts as `rejected` on the Status screen.
+- Release job: fails closed without the keystore secrets and verifies the signer certificate against
+  the `CREWRADIO_CERT_SHA256` repository variable before attesting or publishing.
 
 ## Documentation
 - `README.md` is written for the crew (install, quick start, talk keys, headsets, settings);

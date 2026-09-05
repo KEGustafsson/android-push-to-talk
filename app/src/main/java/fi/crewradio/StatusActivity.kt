@@ -123,7 +123,8 @@ class StatusActivity : AppCompatActivity() {
         card("NETWORK", e?.activeTransports?.joinToString(" + ")?.uppercase().orEmpty()).let { rows ->
             for ((nic, addr) in interfaces()) rows.addView(kv(nic.uppercase(), addr))
             rows.addView(kv("MULTICAST", "${prefs.group}:${prefs.port}"))
-            rows.addView(kv("AWARE", fi.crewradio.transport.WifiAwareTransport.SERVICE_NAME + " · passphrase set"))
+            rows.addView(kv("AWARE", fi.crewradio.transport.WifiAwareTransport.SERVICE_NAME))
+            rows.addView(kv("CHANNEL KEY", "…" + prefs.channelKey.takeLast(4) + " (ends)"))   // enough to compare across phones, not enough to copy
             rows.addView(kv("BLUETOOTH", bluetoothName()))
         }
 
