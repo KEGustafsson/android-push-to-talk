@@ -1,16 +1,21 @@
 # Keeps the two things this project depends on current: the Gradle/AndroidX dependencies and
-# the pinned GitHub Actions. One pull request each per week at most; review like any other PR.
+# the pinned GitHub Actions. One grouped pull request per ecosystem per week at most; review
+# like any other PR.
 version: 2
 updates:
   - package-ecosystem: gradle
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
     groups:
-      androidx:
-        patterns: ["androidx.*", "com.google.android.material:*"]
+      all-gradle:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      all-actions:
+        patterns: ["*"]
