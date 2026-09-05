@@ -39,6 +39,26 @@ class RateLimiterTest {
     }
 
     @Test
+    fun rotatingSenderIdsCannotExceedTheGlobalBudget() {
+        val r = RateLimiter(perSecond = 75.0, burst = 150.0, globalPerSecond = 400.0, globalBurst = 800.0, maxSenders = 100_000)
+        var passed = 0
+        repeat(100_000) { i -> if (r.allow(i, 0L)) passed++ }   // a fresh sender id on every packet
+        assertEquals(800, passed)                                 // the global burst, whatever the ids
+        var later = 0
+        repeat(100_000) { i -> if (r.allow(-i, 1000L)) later++ }
+        assertEquals(400, later)
+    }
+
+    @Test
+    fun theSenderTableIsBounded() {
+        val r = RateLimiter(perSecond = 10.0, burst = 10.0, globalPerSecond = 1e9, globalBurst = 1e9, maxSenders = 4)
+        for (id in 1..4) assertTrue(r.allow(id, 0L))
+        assertFalse(r.allow(5, 0L))                               // no room: refused, not allocated
+        assertTrue(r.allow(1, 0L))                                // the known ones still work
+        assertTrue(r.allow(5, 20_000L))                           // after the sweep there is room again
+    }
+
+    @Test
     fun anIdleSenderIsForgottenAndStartsFresh() {
         val r = RateLimiter(perSecond = 10.0, burst = 10.0, forgetMs = 1000)
         repeat(10) { r.allow(1, 0L) }

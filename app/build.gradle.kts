@@ -81,6 +81,7 @@ android {
 tasks.register("sbom") {
     val out = layout.buildDirectory.file("reports/bom.json")
     outputs.file(out)
+    outputs.upToDateWhen { false }         // timestamped and classpath-dependent: never reuse a stale one
     doLast {
         val comps = configurations.getByName("releaseRuntimeClasspath").resolvedConfiguration.resolvedArtifacts
             .map { it.moduleVersion.id }
