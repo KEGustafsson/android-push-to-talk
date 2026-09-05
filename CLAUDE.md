@@ -140,4 +140,9 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-1. Wi-Fi Direct transport for phones without Wi-Fi Aware.
+Nothing planned. Wi-Fi Direct was considered and dropped (2026-09-05): it needs a group owner
+(a master, the one thing the design avoids), an on-screen accept on first contact, and on many
+phones it displaces the normal WLAN link; one phone's hotspot plus the WLAN transport gives the
+same range on every phone with no new code, and the README says so. Next is a field test on the
+water: voice-keying thresholds in wind and engine noise, real Aware/Bluetooth ranges, multi-hop
+under way, a full day's battery.

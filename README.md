@@ -137,8 +137,11 @@ repeat of the previous one rather than a click. The developer notes in
 
 - **Range.** Bluetooth: a few metres to a few tens of metres, line of sight helps. Wi‑Fi Aware:
   Wi‑Fi class, tens of metres. WLAN: wherever the router reaches. Chain phones to go further.
+- **No router, and phones without Wi‑Fi Aware?** Turn on the hotspot on one phone (it needs no
+  data plan, just to be switched on), join it from the others, and tick WLAN everywhere.
+  That gives Wi‑Fi range on any phone; if the hotspot phone leaves, pick another.
 - **Guest or public Wi‑Fi** often isolates clients from each other, which blocks WLAN links.
-  Use Bluetooth or Wi‑Fi Aware there, or one phone's hotspot.
+  Use Bluetooth or Wi‑Fi Aware there, or one phone's hotspot as above.
 - **Battery.** On the channel the app keeps the radio links and, with voice keying, the
   microphone open. Expect it to use noticeably more than an idle phone.
 - **Notifications.** On Android 13 and newer allow notifications, or the channel runs without a
