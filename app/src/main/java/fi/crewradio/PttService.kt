@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.IntentCompat
 import android.content.pm.ServiceInfo
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -286,10 +287,8 @@ class PttService : Service() {
         try { v.vibrate(VibrationEffect.createWaveform(pattern, -1)) } catch (_: Exception) {}
     }
 
-    @Suppress("DEPRECATION")
     private fun keyEvent(intent: Intent): KeyEvent? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
-        else intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+        IntentCompat.getParcelableExtra(intent, Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
 
     // ---- foreground notification -------------------------------------------------
 

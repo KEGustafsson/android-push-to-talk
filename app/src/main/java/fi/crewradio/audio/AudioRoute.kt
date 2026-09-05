@@ -211,6 +211,8 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
                             ?.let { audioManager.setCommunicationDevice(it) }
                     }
                 } else {
+                    // API 29 and 30 have no setCommunicationDevice: the SCO and speakerphone switches
+                    // below are the platform's only way, deprecated by 31 but kept here for those phones.
                     @Suppress("DEPRECATION")
                     when {
                         headset == null -> {   // speakerphone on, or off for the earpiece

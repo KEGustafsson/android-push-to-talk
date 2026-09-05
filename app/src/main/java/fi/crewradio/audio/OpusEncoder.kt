@@ -50,7 +50,7 @@ class OpusEncoder(private val onPacket: (ByteArray) -> Unit) {
             if (idx == MediaCodec.INFO_TRY_AGAIN_LATER) return
             if (idx < 0) continue                       // format / buffers changed: nothing to read
             val out = codec.getOutputBuffer(idx)
-            val isConfig = info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0
+            val isConfig = (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0
             if (out != null && info.size > 0 && !isConfig) {
                 val bytes = ByteArray(info.size)
                 out.position(info.offset)

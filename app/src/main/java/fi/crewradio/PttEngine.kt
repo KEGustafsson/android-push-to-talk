@@ -379,6 +379,7 @@ class PttEngine(
 
     private class SeenCache(private val capacity: Int) : LinkedHashMap<Long, Boolean>(capacity, 0.75f, false) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Boolean>?) = size > capacity
+        override fun clone(): Any = SeenCache(capacity).also { it.putAll(this) }   // HashMap is Cloneable; keep the bound
     }
     private val seen = SeenCache(4096)          // audio: ~80 s of one talker, plenty for a relay echo
     private val seenHellos = SeenCache(512)     // hellos: 1 Hz per node, their own sequence space
@@ -557,7 +558,7 @@ class PttEngine(
         }
         heardAudio(h.senderId, from)
 
-        if (packetCount.incrementAndGet() and 0xFF == 0) pruneDecoders()
+        if ((packetCount.incrementAndGet() and 0xFF) == 0) pruneDecoders()
         val playing = !(mode == Mode.HALF_DUPLEX && talking)   // radio semantics: not while we transmit
 
         // Audio frames number themselves consecutively, so a gap is lost audio and its slots are
