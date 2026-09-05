@@ -47,7 +47,8 @@ class ChannelNode extends EventEmitter {
     this.seen = new Map(); // key -> true, insertion ordered, bounded
     this.nodes = new Map(); // senderId -> {name, transports, hops, lastSeen, lastAudio}
     this.timer = null;
-    this.speaking = null; // {cancel}
+    this.speaking = null; // {cancel, done} of the announcement going out right now
+    this.chain = Promise.resolve(); // announcements go out one after another, in call order
     this.lastRosterKey = "";
     this.stats = { rx: 0, rejected: 0, tx: 0 };
     this.onPacket = (buf) => this.receive(buf);
@@ -123,11 +124,16 @@ class ChannelNode extends EventEmitter {
 
   /**
    * Keys the channel with 16 kHz mono PCM16 (a Buffer of little-endian bytes), one frame every
-   * 20 ms. Resolves when the last frame has gone out; a second call while one is running waits
-   * behind it. cancel() stops the current one early.
+   * 20 ms. Resolves when the last frame has gone out. Calls queue behind each other in call
+   * order (a promise chain, so two waiters can never both start). cancel() stops the current one.
    */
-  async speak(pcmBytes) {
-    while (this.speaking) await this.speaking.done;
+  speak(pcmBytes) {
+    const turn = this.chain.then(() => this.sendFrames(pcmBytes));
+    this.chain = turn.catch(() => {});
+    return turn;
+  }
+
+  async sendFrames(pcmBytes) {
     const frames = [];
     for (let off = 0; off < pcmBytes.length; off += FRAME_BYTES) {
       const f = Buffer.alloc(FRAME_BYTES); // the last frame is padded with silence
@@ -174,9 +180,11 @@ class ChannelNode extends EventEmitter {
     const h = P.parseHeader(buf);
     if (!h) { this.stats.rejected++; return; }
     if (h.senderId === this.senderId) return;
-    if (!this.markSeen(h.senderId, h.seq, h.codec)) return; // the broadcast twin, or a relay echo
+    // Authenticate first, then dedupe, as the app does: a forged header must not be able to
+    // occupy a (sender, seq) slot and get the authentic packet dropped as its duplicate.
     const plain = this.crypto.open(P.aadOf(buf), buf.subarray(P.HEADER));
     if (!plain) { this.stats.rejected++; return; }
+    if (!this.markSeen(h.senderId, h.seq, h.codec)) return; // the broadcast twin, or a relay echo
     this.stats.rx++;
     const now = this.now();
     let n = this.nodes.get(h.senderId);

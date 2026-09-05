@@ -35,15 +35,16 @@ byte vector, so the two cannot drift apart unnoticed.
 
 ## Install
 
-Until it is on npm, install from this repository:
+Until it is on npm, install from a clone of this repository (npm cannot install a
+subdirectory of a Git URL):
 
 ```sh
+git clone https://github.com/KEGustafsson/android-push-to-talk.git
 cd ~/.signalk
-npm install github:KEGustafsson/android-push-to-talk#main:sk-plugin
+npm install /path/to/android-push-to-talk/sk-plugin
 ```
 
-or copy the `sk-plugin` folder into `~/.signalk/node_modules/signalk-crewradio` and restart the
-server. Then, in the Signal K admin UI:
+and restart the server. Then, in the Signal K admin UI:
 
 1. **Server › Plugin Config › Crew Radio**: paste the channel key, check the multicast group and
    port match the phones (defaults do), pick the interface on the boat WLAN, enable.
@@ -67,7 +68,7 @@ server. Then, in the Signal K admin UI:
 | Multicast group, UDP port | 239.255.42.1, 47474 | Must match the phones' WLAN settings. |
 | Network interface | auto | wlan first, then eth/en, then anything with an IPv4 address. |
 | Hop budget | 4 | How far phones may relay the server's packets. |
-| Wyoming satellite port | 10701 | What signalk-wyoming connects to. |
+| Wyoming satellite port, bind address | 10701, 127.0.0.1 | What signalk-wyoming connects to. The protocol has no authentication, so the satellite listens on loopback unless you widen it for an orchestrator on another host. |
 | Satellite id | crewradio | The id given in signalk-wyoming; the bridge targets it. |
 | Chime | on | Two notes before each announcement. |
 | Wait for a gap in talk | 2000 ms | An announcement waits this long at most before cutting in. |

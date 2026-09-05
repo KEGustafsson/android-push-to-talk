@@ -4,7 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const net = require("node:net");
-const { encodeEvent, EventDecoder, SatelliteServer } = require("../lib/wyoming");
+const { encodeEvent, EventDecoder, SatelliteServer, MAX_DATA, MAX_PAYLOAD, MAX_ANNOUNCEMENT_MS } = require("../lib/wyoming");
 
 test("framing: header line, optional data block, optional payload, any split", () => {
   const payload = Buffer.from([1, 2, 3, 4, 5]);
@@ -24,10 +24,19 @@ test("framing: header line, optional data block, optional payload, any split", (
   }
 });
 
-test("framing rejects malformed headers and absurd lengths", () => {
+test("framing rejects malformed headers and absurd lengths, and will not buffer without bound", () => {
   assert.throws(() => new EventDecoder().feed(Buffer.from("not json\n")));
   assert.throws(() => new EventDecoder().feed(Buffer.from('{"type":"x","payload_length":-1}\n')));
   assert.throws(() => new EventDecoder().feed(Buffer.from('{"type":"x","payload_length":99999999999}\n')));
+  assert.throws(() => new EventDecoder().feed(Buffer.from(`{"type":"x","data_length":${MAX_DATA + 1}}\n`)), /data block/);
+  assert.throws(() => new EventDecoder().feed(Buffer.from(`{"type":"x","payload_length":${MAX_PAYLOAD + 1}}\n`)), /payload/);
+  assert.throws(() => new EventDecoder().feed(Buffer.alloc(70 * 1024, 0x20)), /header line/);
+  // a declared-but-incomplete payload is held, and what can be held is bounded by the caps above
+  const d = new EventDecoder();
+  assert.deepEqual(d.feed(Buffer.from(`{"type":"x","payload_length":${MAX_PAYLOAD}}\n`)), []);
+  assert.deepEqual(d.feed(Buffer.alloc(MAX_PAYLOAD - 1)), []);
+  assert.ok(d.buf.length <= MAX_PAYLOAD + 64 * 1024);
+  assert.equal(d.feed(Buffer.alloc(1)).length, 1, "completes once the last byte arrives");
 });
 
 /** A minimal orchestrator: connects, sends events, collects replies. */
@@ -90,6 +99,31 @@ test("satellite: describe gets info, ping gets pong, and an announcement is play
     release();
     await playedP;
     assert.equal(ack, true);
+    c.sock.destroy();
+  } finally {
+    await sat.close();
+  }
+});
+
+test("satellite: an announcement longer than the cap is dropped, not resampled", async () => {
+  const played = [];
+  const sat = new SatelliteServer({ identity: { name: "Boat" }, play: async (a) => { played.push(a); } });
+  const addr = await sat.listen(0, "127.0.0.1");
+  try {
+    const c = client(addr.port);
+    await c.ready;
+    const f = { rate: 8000, width: 2, channels: 1 };
+    const perSecond = 8000 * 2;
+    c.send("audio-start", f);
+    for (let s = 0; s < MAX_ANNOUNCEMENT_MS / 1000 + 2; s++) c.send("audio-chunk", f, Buffer.alloc(perSecond));
+    c.send("audio-stop");
+    await c.next("played");
+    assert.equal(played.length, 0);
+    c.send("audio-start", { rate: 96000, width: 2, channels: 1 });
+    c.send("audio-chunk", { rate: 96000, width: 2, channels: 1 }, Buffer.alloc(10));
+    c.send("audio-stop");
+    await c.next("played");
+    assert.equal(played.length, 0, "a rate outside 8-48 kHz is refused");
     c.sock.destroy();
   } finally {
     await sat.close();

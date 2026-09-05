@@ -18,7 +18,11 @@ const net = require("node:net");
 const { EventEmitter } = require("node:events");
 
 const MAX_HEADER = 64 * 1024;
-const MAX_PAYLOAD = 4 * 1024 * 1024;
+const MAX_DATA = 1024 * 1024;              // extra JSON after the header line
+const MAX_PAYLOAD = 4 * 1024 * 1024;       // one audio-chunk
+const MAX_BUFFERED = MAX_HEADER + MAX_DATA + MAX_PAYLOAD;
+const MAX_ANNOUNCEMENT_MS = 60_000;        // longer than any alarm text; bounds the resampling work
+const RATES = { min: 8000, max: 48000 };
 
 function encodeEvent(type, data, payload) {
   const head = { type };
@@ -44,6 +48,7 @@ class EventDecoder {
         if (this.buf.length > MAX_HEADER) throw new Error("wyoming: header line too long");
         break;
       }
+      if (nl > MAX_HEADER) throw new Error("wyoming: header line too long");
       let head;
       try {
         head = JSON.parse(this.buf.subarray(0, nl).toString("utf8"));
@@ -53,8 +58,9 @@ class EventDecoder {
       if (typeof head !== "object" || head === null || typeof head.type !== "string") throw new Error("wyoming: header without type");
       const dataLen = lengthField(head.data_length);
       const payloadLen = lengthField(head.payload_length);
+      if (dataLen > MAX_DATA) throw new Error("wyoming: data block too large");
       if (payloadLen > MAX_PAYLOAD) throw new Error("wyoming: payload too large");
-      const total = nl + 1 + dataLen + payloadLen;
+      const total = nl + 1 + dataLen + payloadLen;   // at most MAX_BUFFERED, so an incomplete event holds no more than that
       if (this.buf.length < total) break;
       let data = typeof head.data === "object" && head.data !== null ? head.data : {};
       if (dataLen > 0) {
@@ -187,20 +193,24 @@ class SatelliteServer extends EventEmitter {
         break;
       case "audio-start": {
         const rate = ev.data.rate, width = ev.data.width, channels = ev.data.channels;
-        if (![rate, width, channels].every((n) => Number.isInteger(n) && n > 0) || width !== 2) {
+        const sane = [rate, width, channels].every((n) => Number.isInteger(n) && n > 0)
+          && width === 2 && channels <= 2 && rate >= RATES.min && rate <= RATES.max;
+        if (!sane) {
           this.log(`wyoming: unsupported audio format ${JSON.stringify(ev.data)}`);
           this.current = null;
           break;
         }
-        this.current = { rate, width, channels, chunks: [], bytes: 0 };
+        // Bytes for MAX_ANNOUNCEMENT_MS at this format: the cap on what one announcement may make us resample.
+        const maxBytes = Math.floor((rate * width * channels * MAX_ANNOUNCEMENT_MS) / 1000);
+        this.current = { rate, width, channels, chunks: [], bytes: 0, maxBytes };
         break;
       }
       case "audio-chunk":
         if (this.current && ev.payload) {
           this.current.chunks.push(ev.payload);
           this.current.bytes += ev.payload.length;
-          if (this.current.bytes > MAX_PAYLOAD * 4) {
-            this.log("wyoming: announcement too long; dropped");
+          if (this.current.bytes > this.current.maxBytes) {
+            this.log(`wyoming: announcement over ${MAX_ANNOUNCEMENT_MS / 1000} s; dropped`);
             this.current = null;
           }
         }
@@ -240,4 +250,4 @@ class SatelliteServer extends EventEmitter {
   }
 }
 
-module.exports = { encodeEvent, EventDecoder, SatelliteServer };
+module.exports = { encodeEvent, EventDecoder, SatelliteServer, MAX_ANNOUNCEMENT_MS, MAX_DATA, MAX_PAYLOAD };

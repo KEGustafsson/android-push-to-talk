@@ -7,7 +7,7 @@
  *
  *   node tools/cli.js roster  --key KEY [--name NAME] [--seconds 10]        join, print the roster, leave
  *   node tools/cli.js say     --key KEY --wav FILE [--name NAME] [--no-chime] speak a WAV on the channel
- *   node tools/cli.js serve   --key KEY [--port 10701] [--name NAME]         join and run the Wyoming satellite
+ *   node tools/cli.js serve   --key KEY [--port 10701] [--bind 127.0.0.1]    join and run the Wyoming satellite (no auth: loopback unless told)
  *   node tools/cli.js send    --to HOST:PORT --wav FILE                       act as the orchestrator: stream a WAV to a satellite
  *
  * Common: --group 239.255.42.1 --udp 47474 --iface auto --hops 4 [--unicast HOST,HOST]. WAV: PCM16, any rate, mono or stereo.
@@ -68,8 +68,10 @@ async function main() {
       });
       sat.on("connect", () => log("orchestrator connected"));
       sat.on("disconnect", () => log("orchestrator disconnected"));
-      const a = await sat.listen(Number(args.port) || 10701, "0.0.0.0");
-      log(`satellite listening on ${a.port}; Ctrl-C to stop`);
+      const bind = args.bind || "127.0.0.1";
+      if (bind !== "127.0.0.1") log(`WARNING: the Wyoming protocol has no authentication; anyone who can reach ${bind}:${args.port || 10701} can speak on the channel`);
+      const a = await sat.listen(Number(args.port) || 10701, bind);
+      log(`satellite listening on ${a.address}:${a.port}; Ctrl-C to stop`);
       await new Promise(() => {});
       break;
     }

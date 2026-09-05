@@ -112,6 +112,10 @@ module.exports = function crewRadioPlugin(app) {
     satellite.on("connect", () => { assistantConnected = true; status(); });
     satellite.on("disconnect", () => { assistantConnected = false; status(); });
     satellite.on("error", (e) => app.error(`Wyoming satellite: ${e.message}`));
+    // The Wyoming protocol has no authentication: whoever can reach this port can make the crew
+    // hear anything. signalk-wyoming runs on this host, so loopback is the default; a wider bind
+    // is a deliberate setting, and the log says so.
+    if (!isLoopback(cfg.satelliteHost)) app.error(`Wyoming satellite bound to ${cfg.satelliteHost}: anyone who can reach port ${cfg.satellitePort} can speak on the channel`);
     satellite.listen(cfg.satellitePort, cfg.satelliteHost).then(
       (a) => app.debug(`Wyoming satellite listening on ${a.address}:${a.port}`),
       (e) => app.setPluginError(`Wyoming satellite: ${e.message}`),
@@ -216,7 +220,7 @@ function withDefaults(o, app) {
     iface: String(o.iface ?? "auto").trim() || "auto",
     hops: Number(o.hops ?? 4),
     satellitePort: Number(o.satellitePort ?? 10701),
-    satelliteHost: String(o.satelliteHost ?? "0.0.0.0").trim() || "0.0.0.0",
+    satelliteHost: String(o.satelliteHost ?? "127.0.0.1").trim() || "127.0.0.1",
     satelliteId: String(o.satelliteId ?? "crewradio").trim() || "crewradio",
     chime: o.chime ?? true,
     waitForSilenceMs: Number(o.waitForSilenceMs ?? 2000),
@@ -231,6 +235,10 @@ function withDefaults(o, app) {
       alsoSpeakers: b.alsoSpeakers ?? false,
     },
   };
+}
+
+function isLoopback(host) {
+  return host === "127.0.0.1" || host === "::1" || host === "localhost" || host.startsWith("127.");
 }
 
 function boatName(app) {
@@ -253,7 +261,7 @@ function schema(app) {
       iface: { type: "string", title: "Network interface", default: "auto", description: "Interface on the boat WLAN (e.g. wlan0). auto: a wlan interface, else eth/en, else the first with an IPv4 address." },
       hops: { type: "integer", title: "Hop budget", default: 4, minimum: 1, maximum: 8, description: "How far phones may relay the server's packets over Bluetooth and Wi-Fi Aware." },
       satellitePort: { type: "integer", title: "Wyoming satellite port", default: 10701, minimum: 1024, maximum: 65535, description: "Add a satellite in signalk-wyoming with host 127.0.0.1 and this port, id \"crewradio\" (or the id below), and no wake words (speaker only)." },
-      satelliteHost: { type: "string", title: "Wyoming satellite bind address", default: "0.0.0.0" },
+      satelliteHost: { type: "string", title: "Wyoming satellite bind address", default: "127.0.0.1", description: "Leave at 127.0.0.1 when signalk-wyoming runs on this server. The Wyoming protocol has no authentication, so a wider address lets anyone who can reach the port speak on the channel; only use one on a network you trust, for an orchestrator on another host." },
       satelliteId: { type: "string", title: "Satellite id in signalk-wyoming", default: "crewradio", description: "The id you gave this satellite in signalk-wyoming; the bridge targets it. Must match ^[a-zA-Z0-9_-]+$." },
       chime: { type: "boolean", title: "Chime before each announcement", default: true },
       waitForSilenceMs: { type: "integer", title: "Wait for a gap in talk (ms)", default: 2000, minimum: 0, maximum: 30000, description: "An announcement waits this long at most for the crew to stop talking before it cuts in." },
