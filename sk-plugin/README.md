@@ -24,6 +24,12 @@ Everything on the wire is the app's own format: AES‑256‑GCM under the crew's
 same packets, the same roster hellos. The plugin's tests and the app's unit tests check the same
 byte vector, so the two cannot drift apart unnoticed.
 
+![An alarm on its way from Signal K to the crew's phones](./docs/screenshots/announcement.png)
+
+![How the plugin fits between Signal K, signalk-wyoming and the phones](./docs/screenshots/how-it-fits.png)
+
+The pictures are drawn, not photographed, so they carry example names only.
+
 ## Requirements
 
 - Signal K server 2.x on Node **24 or newer** (signalk-wyoming needs 24; the server itself 22).

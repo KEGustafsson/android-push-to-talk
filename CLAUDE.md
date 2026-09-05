@@ -141,7 +141,16 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 
 ## Signal K plugin (`sk-plugin/`)
 - `signalk-crewradio`: the boat's Signal K server as a node on the channel. Pure Node 24+, no
-  runtime dependencies, CommonJS, tests with `node --test` (CI job `plugin`). `lib/packet.js`,
+  runtime dependencies, CommonJS, tests with `node --test` (`npm test`; `npm run coverage` enforces
+  80 % lines and functions, 75 % branches, excluding `tools/`). CI: `.github/workflows/signalk-ci.yml`
+  calls the Signal K project's reusable `plugin-ci.yml@master` with `working-directory: sk-plugin`
+  (that canonical reference is what the App Store's Indicators tab looks for, so it is not pinned to
+  a SHA). The App Store score (registry `test-harness/score.ts`) wants: installs with
+  `--ignore-scripts`, constructor returns an object, `start()` completes with schema defaults and
+  without `setPluginError` (so a missing channel key is a status, not an error), a schema, own tests
+  that pass within 60 s, a clean `npm audit`, a `CHANGELOG.md` in the tarball and
+  `signalk.screenshots` in package.json. Screenshots and the icon are drawn by
+  `docs/make_screenshots.py` (draw.io export, like the app's docs), 1280 x 800. `lib/packet.js`,
   `lib/crypto.js` and `lib/node.js` mirror `Packet.kt`, `ChannelCrypto.kt`, `Hello.kt` and the
   engine's roster rules byte for byte; `sk-plugin/test/vector.json` and the app's
   `CrossLanguageVectorTest` check the same packet, so change both when the wire changes.

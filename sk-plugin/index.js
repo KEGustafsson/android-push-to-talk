@@ -30,7 +30,9 @@ const pkg = require("./package.json");
 const CHANNEL_RATE = 16_000;
 const WYOMING_API = "signalk-wyoming.api";
 
-module.exports = function crewRadioPlugin(app) {
+/** @param {object} app the Signal K plugin API; `deps` lets tests inject a fake WLAN link */
+module.exports = function crewRadioPlugin(app, deps = {}) {
+  const Link = deps.LanLink ?? LanLink;
   const plugin = {
     id: "signalk-crewradio",
     name: "Crew Radio",
@@ -55,14 +57,15 @@ module.exports = function crewRadioPlugin(app) {
     running = true;
     const cfg = withDefaults(options, app);
     if (!cfg.channelKey) {
-      app.setPluginError("Channel key missing: set the same key as on the phones");
+      // Not configured yet is not a failure: nothing is started, and the status says what is needed.
+      app.setPluginStatus("Waiting for the channel key: set the same key as on the phones (Plugin Config)");
       return;
     }
     const crypto = ChannelCrypto.forChannelKey(cfg.channelKey);
 
     const openLink = async () => {
       if (!running) return;
-      link = new LanLink({ group: cfg.group, port: cfg.port, iface: cfg.iface });
+      link = new Link({ group: cfg.group, port: cfg.port, iface: cfg.iface });
       link.on("error", (e) => {
         app.error(`WLAN link: ${e.message}`);
         scheduleReopen();
@@ -74,13 +77,14 @@ module.exports = function crewRadioPlugin(app) {
       } catch (e) {
         app.error(`WLAN link: ${e.message}`);
         scheduleReopen();
+        status();
         return;
       }
       node = new ChannelNode({ name: cfg.nodeName, crypto, link, ttl: cfg.hops });
       node.on("roster", (r) => publishRoster(r));
       node.on("speaking", () => status());
       node.start();
-      status();
+      publishRoster(node.roster());              // the paths exist from the start, even when nobody is there yet
     };
     const scheduleReopen = () => {
       if (!running || reopenTimer) return;
@@ -116,9 +120,9 @@ module.exports = function crewRadioPlugin(app) {
     // hear anything. signalk-wyoming runs on this host, so loopback is the default; a wider bind
     // is a deliberate setting, and the log says so.
     if (!isLoopback(cfg.satelliteHost)) app.error(`Wyoming satellite bound to ${cfg.satelliteHost}: anyone who can reach port ${cfg.satellitePort} can speak on the channel`);
-    satellite.listen(cfg.satellitePort, cfg.satelliteHost).then(
-      (a) => app.debug(`Wyoming satellite listening on ${a.address}:${a.port}`),
-      (e) => app.setPluginError(`Wyoming satellite: ${e.message}`),
+    plugin.satelliteListening = satellite.listen(cfg.satellitePort, cfg.satelliteHost).then(
+      (a) => { app.debug(`Wyoming satellite listening on ${a.address}:${a.port}`); return a; },
+      (e) => { app.setPluginError(`Wyoming satellite: ${e.message}`); return null; },
     );
 
     // Notifications to announcements.

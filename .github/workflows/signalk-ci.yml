@@ -1,0 +1,30 @@
+name: SignalK Plugin CI
+
+# The Signal K project's reusable plugin CI, run against sk-plugin/ (signalk-crewradio): it
+# validates package.json, the entry point, plugin.schema(), the start/stop/start lifecycle and
+# the plugin's API usage, packs the package the way the App Store installs it, and runs the
+# tests with coverage on Linux x64 and arm64, macOS and Windows. The App Store's Indicators tab
+# shows this matrix for the published version, which is why the canonical `@master` reference
+# is used here rather than a pinned commit: that is what the registry looks for.
+#
+# armv7 (Cerbo GX, Node 20) is off: the plugin needs Node 24, as signalk-wyoming does.
+
+on:
+  push:
+    branches: [main]
+    paths: ["sk-plugin/**", ".github/workflows/signalk-ci.yml"]
+  pull_request:
+    paths: ["sk-plugin/**", ".github/workflows/signalk-ci.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plugin:
+    uses: SignalK/signalk-server/.github/workflows/plugin-ci.yml@master
+    with:
+      working-directory: sk-plugin
+      node-versions: '["24"]'
+      coverage-command: npm run coverage
+      enable-armv7: false
