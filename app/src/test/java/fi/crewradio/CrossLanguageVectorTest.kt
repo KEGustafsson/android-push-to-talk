@@ -14,8 +14,8 @@ import org.junit.Test
 class CrossLanguageVectorTest {
     private val channelKey = "north-star-2026"
     private val derivedKeyHex = "c387a6bb78fb90ffdb2842ebbfa5057048545562ba2c97274ff6d0f1e442e1cc"
-    private val packetHex = "5054030204041234567800000007000102030405060708090a0bbcee1ff455805ed4bacd8cdbdaf74c4a6d7841ae99bc52b5a213e2e1"
-    private val plainHex = "0101040841726162656c6c61"
+    private val packetHex = "5054030204041234567800000007000102030405060708090a0bbcee1ffa479b4ddfaad2b5657b70fea6573d4b1f63144b2728b4"
+    private val plainHex = "01010406536972697573"
 
     @Test
     fun theKeyDerivesToTheSameBytes() {
@@ -37,14 +37,14 @@ class CrossLanguageVectorTest {
         assertEquals(plainHex, plain!!.toHex())
         val hello = Hello.decode(plain, 0, plain.size)
         assertNotNull(hello)
-        assertEquals("Arabella", hello!!.name)
+        assertEquals("Sirius", hello!!.name)
         assertEquals(Hello.LAN, hello.transports)
         assertEquals(4, hello.ttl)
     }
 
     @Test
     fun theHelloEncodesToTheSameBytes() {
-        assertArrayEquals(plainHex.hexToBytes(), Hello("Arabella", Hello.LAN, 4).encode())
+        assertArrayEquals(plainHex.hexToBytes(), Hello("Sirius", Hello.LAN, 4).encode())
     }
 
     private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }

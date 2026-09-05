@@ -7,7 +7,7 @@
  *
  *   node tools/cli.js roster  --key KEY [--name NAME] [--seconds 10]        join, print the roster, leave
  *   node tools/cli.js say     --key KEY --wav FILE [--name NAME] [--no-chime] speak a WAV on the channel
- *   node tools/cli.js serve   --key KEY [--port 10701] [--bind 127.0.0.1]    join and run the Wyoming satellite (no auth: loopback unless told)
+ *   node tools/cli.js serve   --key KEY [--port 10701] [--bind 127.0.0.1] [--allow HOST,CIDR]   join and run the Wyoming satellite
  *   node tools/cli.js send    --to HOST:PORT --wav FILE                       act as the orchestrator: stream a WAV to a satellite
  *
  * Common: --group 239.255.42.1 --udp 47474 --iface auto --hops 4 [--unicast HOST,HOST]. WAV: PCM16, any rate, mono or stereo.
@@ -53,9 +53,11 @@ async function main() {
     case "serve": {
       const { node } = await join();
       node.on("roster", (r) => log(`roster: ${r.map(fmt).join(", ") || "(nobody)"}`));
+      const allow = args.allow ? String(args.allow).split(",") : [];
       const sat = new SatelliteServer({
         identity: { name: args.name || "Laptop", version: "cli" },
         log,
+        allowFrom: allow,
         play: async (audio) => {
           log(`announcement: ${audio.rate} Hz x${audio.channels}, ${Buffer.concat(audio.chunks).length} bytes`);
           let s = toMono(bytesToSamples(Buffer.concat(audio.chunks)), audio.channels);
@@ -68,8 +70,8 @@ async function main() {
       });
       sat.on("connect", () => log("orchestrator connected"));
       sat.on("disconnect", () => log("orchestrator disconnected"));
-      const bind = args.bind || "127.0.0.1";
-      if (bind !== "127.0.0.1") log(`WARNING: the Wyoming protocol has no authentication; anyone who can reach ${bind}:${args.port || 10701} can speak on the channel`);
+      let bind = args.bind || "127.0.0.1";
+      if (bind !== "127.0.0.1" && allow.length === 0) { log(`--bind ${bind} needs --allow (the Wyoming protocol has no authentication); using 127.0.0.1`); bind = "127.0.0.1"; }
       const a = await sat.listen(Number(args.port) || 10701, bind);
       log(`satellite listening on ${a.address}:${a.port}; Ctrl-C to stop`);
       await new Promise(() => {});

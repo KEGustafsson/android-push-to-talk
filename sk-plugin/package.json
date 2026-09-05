@@ -1,7 +1,7 @@
 {
   "name": "signalk-crewradio",
   "version": "0.1.0",
-  "description": "Puts the Signal K server on the Crew Radio push-to-talk channel: a Wyoming satellite for signalk-wyoming, so the boat's voice assistant can speak to the crew, plus a bridge that announces Signal K notifications and publishes the crew roster.",
+  "description": "Crew Radio: lets Signal K tell the sailing crew what matters, by voice, on their push-to-talk phones.",
   "main": "index.js",
   "license": "EUPL-1.2",
   "author": "Karl-Erik Gustafsson",
@@ -11,6 +11,9 @@
     "directory": "sk-plugin"
   },
   "homepage": "https://github.com/KEGustafsson/android-push-to-talk/tree/main/sk-plugin",
+  "bugs": {
+    "url": "https://github.com/KEGustafsson/android-push-to-talk/issues"
+  },
   "keywords": [
     "signalk-node-server-plugin",
     "signalk-category-notifications",
@@ -22,12 +25,31 @@
   "engines": {
     "node": ">=24"
   },
+  "signalk": {
+    "displayName": "Crew Radio",
+    "appIcon": "./docs/icon.png",
+    "screenshots": [
+      "./docs/screenshots/plugin-config.png",
+      "./docs/screenshots/announcement.png",
+      "./docs/screenshots/data-browser.png",
+      "./docs/screenshots/how-it-fits.png"
+    ],
+    "recommends": [
+      "signalk-wyoming",
+      "signalk-piper"
+    ]
+  },
   "files": [
     "index.js",
     "lib/",
-    "README.md"
+    "tools/",
+    "docs/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"tools/**\" --test-coverage-lines=80 --test-coverage-branches=75 --test-coverage-functions=80"
   }
 }

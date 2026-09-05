@@ -164,8 +164,8 @@ repeat of the previous one rather than a click. The developer notes in
 ## The boat can talk too
 
 With a Signal K server on board, the boat itself can be on the channel. The
-[signalk-crewradio](sk-plugin/README.md) plugin makes the server one more node, over the boat
-WLAN, and a speaker for the boat's voice assistant ([signalk-wyoming](https://github.com/hoeken/signalk-wyoming)):
+[signalk-crewradio](sk-plugin/README.md) plugin makes the server one more node, over the boat's
+LAN or WLAN (the router the phones' Wi‑Fi hangs off), and a speaker for the boat's voice assistant ([signalk-wyoming](https://github.com/hoeken/signalk-wyoming)):
 anything the assistant is asked to say reaches every phone on the channel, and Signal K alarms
 (anchor dragging, man overboard, a hot engine) are announced by voice, urgently when they are
 emergencies, until they clear. The phones need the WLAN link ticked for it; the server shows on

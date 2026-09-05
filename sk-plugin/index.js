@@ -30,7 +30,9 @@ const pkg = require("./package.json");
 const CHANNEL_RATE = 16_000;
 const WYOMING_API = "signalk-wyoming.api";
 
-module.exports = function crewRadioPlugin(app) {
+/** @param {object} app the Signal K plugin API; `deps` lets tests inject a fake network link */
+module.exports = function crewRadioPlugin(app, deps = {}) {
+  const Link = deps.LanLink ?? LanLink;
   const plugin = {
     id: "signalk-crewradio",
     name: "Crew Radio",
@@ -55,32 +57,35 @@ module.exports = function crewRadioPlugin(app) {
     running = true;
     const cfg = withDefaults(options, app);
     if (!cfg.channelKey) {
-      app.setPluginError("Channel key missing: set the same key as on the phones");
+      // Not configured yet is not a failure: nothing is started, and the status says what is needed.
+      app.setPluginStatus("Waiting for the channel key: set the same key as on the phones (Plugin Config)");
       return;
     }
     const crypto = ChannelCrypto.forChannelKey(cfg.channelKey);
 
     const openLink = async () => {
       if (!running) return;
-      link = new LanLink({ group: cfg.group, port: cfg.port, iface: cfg.iface });
+      link = new Link({ group: cfg.group, port: cfg.port, iface: cfg.iface });
       link.on("error", (e) => {
-        app.error(`WLAN link: ${e.message}`);
+        app.error(`Network link: ${e.message}`);
         scheduleReopen();
+        status();                                 // the roster is gone with the link; say so now, not at the next event
       });
       try {
         const where = await link.open();
         backoffMs = 1000;
-        app.debug(`WLAN link up on ${where.iface} ${where.address} (group ${cfg.group}:${cfg.port}, broadcast ${where.broadcast})`);
+        app.debug(`Network link up on ${where.iface} ${where.address} (group ${cfg.group}:${cfg.port}, broadcast ${where.broadcast})`);
       } catch (e) {
-        app.error(`WLAN link: ${e.message}`);
+        app.error(`Network link: ${e.message}`);
         scheduleReopen();
+        status();
         return;
       }
       node = new ChannelNode({ name: cfg.nodeName, crypto, link, ttl: cfg.hops });
       node.on("roster", (r) => publishRoster(r));
       node.on("speaking", () => status());
       node.start();
-      status();
+      publishRoster(node.roster());              // the paths exist from the start, even when nobody is there yet
     };
     const scheduleReopen = () => {
       if (!running || reopenTimer) return;
@@ -108,17 +113,27 @@ module.exports = function crewRadioPlugin(app) {
       identity: { name: cfg.nodeName, description: "Crew Radio channel (signalk-crewradio)", version: pkg.version },
       log: (m) => app.debug(m),
       play: (audio) => announce(audio, cfg),
+      allowFrom: cfg.satelliteAllowFrom,
     });
     satellite.on("connect", () => { assistantConnected = true; status(); });
     satellite.on("disconnect", () => { assistantConnected = false; status(); });
     satellite.on("error", (e) => app.error(`Wyoming satellite: ${e.message}`));
     // The Wyoming protocol has no authentication: whoever can reach this port can make the crew
-    // hear anything. signalk-wyoming runs on this host, so loopback is the default; a wider bind
-    // is a deliberate setting, and the log says so.
-    if (!isLoopback(cfg.satelliteHost)) app.error(`Wyoming satellite bound to ${cfg.satelliteHost}: anyone who can reach port ${cfg.satellitePort} can speak on the channel`);
-    satellite.listen(cfg.satellitePort, cfg.satelliteHost).then(
-      (a) => app.debug(`Wyoming satellite listening on ${a.address}:${a.port}`),
-      (e) => app.setPluginError(`Wyoming satellite: ${e.message}`),
+    // hear anything. signalk-wyoming runs on this host, so loopback is the default. A wider bind
+    // is only taken together with an allowlist of the orchestrator's address(es); the satellite
+    // itself refuses every other client, and without a list it stays on loopback and says so.
+    let bindHost = cfg.satelliteHost;
+    if (!isLoopback(bindHost)) {
+      if (cfg.satelliteAllowFrom.length === 0) {
+        app.error(`Wyoming satellite: bind address ${bindHost} needs an allowlist of orchestrator addresses; listening on 127.0.0.1 instead`);
+        bindHost = "127.0.0.1";
+      } else {
+        app.debug(`Wyoming satellite on ${bindHost}:${cfg.satellitePort}, clients limited to ${cfg.satelliteAllowFrom.join(", ")}`);
+      }
+    }
+    plugin.satelliteListening = satellite.listen(cfg.satellitePort, bindHost).then(
+      (a) => { app.debug(`Wyoming satellite listening on ${a.address}:${a.port}`); return a; },
+      (e) => { app.setPluginError(`Wyoming satellite: ${e.message}`); return null; },
     );
 
     // Notifications to announcements.
@@ -139,7 +154,7 @@ module.exports = function crewRadioPlugin(app) {
       bridge.on("announce", (a) => app.debug(`announce ${a.priority}: ${a.path}: ${a.message}`));
       bridge.start();
       app.subscriptionmanager.subscribe(
-        { context: "vessels.self", subscribe: [{ path: "notifications.*", period: 1000, policy: "instant" }] },
+        { context: "vessels.self", subscribe: [{ path: "notifications.*", policy: "instant" }] },   // no period: the server warns that a period implies 'fixed'
         unsubscribes,
         (err) => app.error(`notifications subscription: ${err}`),
         (delta) => bridge.onDelta(delta),
@@ -167,7 +182,7 @@ module.exports = function crewRadioPlugin(app) {
 
   /** One announcement from the assistant: to mono, to 16 kHz, chime in front, wait for a gap, key the channel. */
   async function announce(audio, cfg) {
-    if (!node) throw new Error("not on the channel (WLAN link down)");
+    if (!node) throw new Error("not on the channel (network link down)");
     let samples = bytesToSamples(Buffer.concat(audio.chunks));
     samples = toMono(samples, audio.channels);
     samples = resample(samples, audio.rate, CHANNEL_RATE);
@@ -197,7 +212,7 @@ module.exports = function crewRadioPlugin(app) {
     if (!running) return;
     const r = roster ?? node?.roster() ?? [];
     const parts = [];
-    parts.push(node ? `${r.length} online` : "WLAN link down");
+    parts.push(node ? `${r.length} online` : "network link down");
     const talking = r.filter((n) => n.talking).map((n) => n.name);
     if (talking.length) parts.push(`talking: ${talking.join(", ")}`);
     if (node?.speaking) parts.push("announcing");
@@ -221,6 +236,7 @@ function withDefaults(o, app) {
     hops: Number(o.hops ?? 4),
     satellitePort: Number(o.satellitePort ?? 10701),
     satelliteHost: String(o.satelliteHost ?? "127.0.0.1").trim() || "127.0.0.1",
+    satelliteAllowFrom: (Array.isArray(o.satelliteAllowFrom) ? o.satelliteAllowFrom : []).map((a) => String(a).trim()).filter(Boolean),
     satelliteId: String(o.satelliteId ?? "crewradio").trim() || "crewradio",
     chime: o.chime ?? true,
     waitForSilenceMs: Number(o.waitForSilenceMs ?? 2000),
@@ -256,12 +272,13 @@ function schema(app) {
     properties: {
       channelKey: { type: "string", title: "Channel key", description: "The crew's channel key, exactly as on the phones (Settings › Channel key). Keeps the channel private; every node must share it." },
       nodeName: { type: "string", title: "Name on the roster", description: `How the phones list the server. Empty: the vessel's name (${boatName(app)}).`, default: "" },
-      group: { type: "string", title: "Multicast group", default: "239.255.42.1", description: "Must match the phones' WLAN setting." },
+      group: { type: "string", title: "Multicast group", default: "239.255.42.1", description: "Must match the phones' WLAN setting (Settings › WLAN group and port)." },
       port: { type: "integer", title: "UDP port", default: 47474, minimum: 1024, maximum: 65535 },
-      iface: { type: "string", title: "Network interface", default: "auto", description: "Interface on the boat WLAN (e.g. wlan0). auto: a wlan interface, else eth/en, else the first with an IPv4 address." },
+      iface: { type: "string", title: "Network interface", default: "auto", description: "The server's interface on the boat network: wired LAN (eth0) or WLAN (wlan0), as long as it is the same network the phones' WLAN is on. auto: a wlan interface, else eth/en, else the first with an IPv4 address." },
       hops: { type: "integer", title: "Hop budget", default: 4, minimum: 1, maximum: 8, description: "How far phones may relay the server's packets over Bluetooth and Wi-Fi Aware." },
       satellitePort: { type: "integer", title: "Wyoming satellite port", default: 10701, minimum: 1024, maximum: 65535, description: "Add a satellite in signalk-wyoming with host 127.0.0.1 and this port, id \"crewradio\" (or the id below), and no wake words (speaker only)." },
-      satelliteHost: { type: "string", title: "Wyoming satellite bind address", default: "127.0.0.1", description: "Leave at 127.0.0.1 when signalk-wyoming runs on this server. The Wyoming protocol has no authentication, so a wider address lets anyone who can reach the port speak on the channel; only use one on a network you trust, for an orchestrator on another host." },
+      satelliteHost: { type: "string", title: "Wyoming satellite bind address", default: "127.0.0.1", description: "Leave at 127.0.0.1 when signalk-wyoming runs on this server. The Wyoming protocol has no authentication; a wider address is taken only together with the allowlist below, and everyone not on it is refused." },
+      satelliteAllowFrom: { type: "array", title: "Orchestrator addresses allowed to connect", items: { type: "string" }, default: [], description: "For an orchestrator on another host: its address, or an IPv4 range such as 10.10.10.0/24. Loopback is always allowed. Empty: loopback only, whatever the bind address." },
       satelliteId: { type: "string", title: "Satellite id in signalk-wyoming", default: "crewradio", description: "The id you gave this satellite in signalk-wyoming; the bridge targets it. Must match ^[a-zA-Z0-9_-]+$." },
       chime: { type: "boolean", title: "Chime before each announcement", default: true },
       waitForSilenceMs: { type: "integer", title: "Wait for a gap in talk (ms)", default: 2000, minimum: 0, maximum: 30000, description: "An announcement waits this long at most for the crew to stop talking before it cuts in." },

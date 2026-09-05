@@ -97,12 +97,15 @@ class SatelliteServer extends EventEmitter {
    * @param {(audio: {rate:number,width:number,channels:number,chunks:Buffer[]}) => Promise<void>} opts.play
    * @param {{name:string, description?:string, version?:string, attribution?:{name:string,url:string}}} opts.identity
    * @param {(msg:string)=>void} [opts.log]
+   * @param {string[]} [opts.allowFrom]  client addresses or IPv4 CIDRs allowed to connect besides loopback;
+   *                                     the protocol has no authentication, so this is the only gate
    */
   constructor(opts) {
     super();
     this.play = opts.play;
     this.identity = opts.identity;
     this.log = opts.log ?? (() => {});
+    this.allow = (opts.allowFrom ?? []).map(parseAllow).filter(Boolean);
     this.server = null;
     this.client = null;
     this.mode = "pause";
@@ -137,6 +140,11 @@ class SatelliteServer extends EventEmitter {
   }
 
   accept(sock) {
+    if (!this.allowed(sock.remoteAddress)) {
+      this.log(`wyoming: refused a connection from ${sock.remoteAddress}: not loopback and not in the allowlist`);
+      sock.destroy();
+      return;
+    }
     // One client at a time: the newest wins, so a reconnecting orchestrator reclaims the slot at once.
     if (this.client) {
       this.log("wyoming: new connection replaces the old one");
@@ -167,6 +175,14 @@ class SatelliteServer extends EventEmitter {
       }
     });
     this.emit("connect");
+  }
+
+  /** Loopback always; anything else only if the allowlist says so. */
+  allowed(remote) {
+    const ip = normaliseIp(remote);
+    if (ip === null) return false;
+    if (isLoopbackIp(ip)) return true;
+    return this.allow.some((rule) => rule(ip));
   }
 
   send(client, type, data, payload) {
@@ -250,4 +266,36 @@ class SatelliteServer extends EventEmitter {
   }
 }
 
-module.exports = { encodeEvent, EventDecoder, SatelliteServer, MAX_ANNOUNCEMENT_MS, MAX_DATA, MAX_PAYLOAD };
+/** "::ffff:10.0.0.5" -> "10.0.0.5"; null for anything unparseable. */
+function normaliseIp(remote) {
+  if (typeof remote !== "string" || remote === "") return null;
+  return remote.startsWith("::ffff:") ? remote.slice(7) : remote;
+}
+
+function isLoopbackIp(ip) {
+  return ip === "::1" || /^127\.\d+\.\d+\.\d+$/.test(ip);
+}
+
+function ipv4ToInt(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (!m) return null;
+  const parts = m.slice(1).map(Number);
+  if (parts.some((n) => n > 255)) return null;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+/** An allowlist entry: an exact address (v4 or v6) or an IPv4 CIDR; returns a predicate, or null when malformed. */
+function parseAllow(entry) {
+  const s = String(entry).trim();
+  if (!s) return null;
+  const cidr = /^(.+)\/(\d{1,2})$/.exec(s);
+  if (cidr) {
+    const base = ipv4ToInt(cidr[1]), bits = Number(cidr[2]);
+    if (base === null || bits > 32) return null;
+    const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+    return (ip) => { const n = ipv4ToInt(ip); return n !== null && (n & mask) === (base & mask); };
+  }
+  return (ip) => ip === s;
+}
+
+module.exports = { encodeEvent, EventDecoder, SatelliteServer, MAX_ANNOUNCEMENT_MS, MAX_DATA, MAX_PAYLOAD, parseAllow, normaliseIp };
