@@ -11,6 +11,11 @@ updates:
     groups:
       all-gradle:
         patterns: ["*"]
+    ignore:
+      # Major versions of the toolchain (AGP, Kotlin, Gradle) and libraries are taken by hand,
+      # with the migration work they need; Dependabot proposes minor and patch updates only.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
