@@ -33,7 +33,10 @@ no account, no internet, no subscription. Connecting people, with what is in the
    the browser).
 2. Give the app the permissions it asks for: microphone, and nearby devices / Bluetooth for the
    links you plan to use.
-3. Every phone on the crew must run the **same version**. The Status screen (menu ⋮ › Status)
+3. **Share the channel key.** Each phone makes its own random key on first start (Settings ›
+   Channel › Channel key, like `q7wk-m3xv-pd2h`). Pick one phone's key and type it into the
+   others. Everything on the air is encrypted with it, and only phones that have it can join.
+4. Every phone on the crew must run the **same version**. The Status screen (menu ⋮ › Status)
    shows the version at the bottom of *This phone*.
 
 ## Quick start
@@ -101,6 +104,7 @@ hellos); and the last forty status lines with time stamps.
 | --- | --- |
 | **My name** | What the others see in their crew list. Empty: the phone's own name. |
 | **Channel name** | The big word at the top: the boat, the crew, the site. |
+| **Channel key** | The crew's shared secret: encrypts every packet and is the Wi‑Fi Aware passphrase. Generated on first start; every phone must have the same one. Change it to evict everyone who had the old one. |
 | **Full duplex** | Off (default): hold to talk, others muted while you hold. On: the disc toggles the mic and everyone is heard at once. |
 | **Talk button** | Which hardware keys key the mic: headset button, volume keys, both, or off. |
 | **Audio output** | Headset when connected, else earpiece at the ear and loudspeaker otherwise (default); always the loudspeaker; or the earpiece. |
@@ -111,7 +115,6 @@ hellos); and the last forty status lines with time stamps.
 | **Relay** | Forward what this phone hears to its other links. Leave on. |
 | **Opus compression** | On (default): about a tenth of the bandwidth of raw audio. |
 | **WLAN group and port** | The multicast group every phone listens to. Change only if it clashes with something on your network, and change it on every phone. |
-| **Wi‑Fi Aware passphrase** | Phones must share it to link. Change it to keep another crew out. |
 | **Hop limit** | How many phones a packet may be relayed through (4). |
 
 ## How it works, briefly
@@ -146,8 +149,11 @@ repeat of the previous one rather than a click. The developer notes in
   microphone open. Expect it to use noticeably more than an idle phone.
 - **Notifications.** On Android 13 and newer allow notifications, or the channel runs without a
   visible notification (it still runs).
-- **Privacy.** Nothing leaves the phones. There is no server; on WLAN anyone on the same network
-  with the app and the same group could listen, and Wi‑Fi Aware links need the shared passphrase.
+- **Privacy and security.** Nothing leaves the phones and there is no server. Every packet is
+  encrypted and authenticated with the crew's channel key (AES‑256‑GCM), so someone on the same
+  WLAN without the key can neither listen nor inject; a flooding sender is rate-limited. The
+  full threat model and what the app does about each threat is in
+  [docs/SECURITY.md](docs/SECURITY.md); report problems as described in [SECURITY.md](SECURITY.md).
 
 ## Build it yourself
 

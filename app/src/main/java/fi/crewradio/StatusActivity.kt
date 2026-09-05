@@ -123,7 +123,7 @@ class StatusActivity : AppCompatActivity() {
         card("NETWORK", e?.activeTransports?.joinToString(" + ")?.uppercase().orEmpty()).let { rows ->
             for ((nic, addr) in interfaces()) rows.addView(kv(nic.uppercase(), addr))
             rows.addView(kv("MULTICAST", "${prefs.group}:${prefs.port}"))
-            rows.addView(kv("AWARE", fi.crewradio.transport.WifiAwareTransport.SERVICE_NAME + " · passphrase set"))
+            rows.addView(kv("AWARE", fi.crewradio.transport.WifiAwareTransport.SERVICE_NAME + " · channel key set"))
             rows.addView(kv("BLUETOOTH", bluetoothName()))
         }
 

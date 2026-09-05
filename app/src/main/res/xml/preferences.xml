@@ -15,6 +15,11 @@
             app:title="Channel name"
             app:dialogMessage="Shown large at the top of the main screen: the boat or the crew, e.g. NORTH STAR. Up to 24 characters; empty shows the app name."
             app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:key="channel_key"
+            app:title="Channel key"
+            app:dialogMessage="Every phone on the crew must have the same key: it encrypts everything on the air and only phones that have it can join. This phone made one for you; read it out or type it into the others, or type theirs here. 8 to 63 plain characters. Takes effect on the next join."
+            app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="Talking">
@@ -88,15 +93,6 @@
             app:title="UDP port"
             app:defaultValue="47474"
             app:dialogMessage="1024 to 65535, the same on every phone."
-            app:useSimpleSummaryProvider="true" />
-    </PreferenceCategory>
-
-    <PreferenceCategory app:title="Wi‑Fi Aware — takes effect on the next Connect">
-        <EditTextPreference
-            app:key="aware_passphrase"
-            app:title="Passphrase"
-            app:defaultValue="crew-radio"
-            app:dialogMessage="8 to 63 plain ASCII characters. Phones only link up when it matches, so it doubles as the crew name."
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 

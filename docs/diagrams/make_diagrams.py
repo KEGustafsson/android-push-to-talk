@@ -185,13 +185,13 @@ def status_screen(p, x, y):
 
 
 def settings_screen(p, x, y):
-    n = [frame(p + "f", x, y, h=880)]
+    n = [frame(p + "f", x, y, h=940)]
     n.append(rect(p + "bar", x + 2, y + 2, 356, 56, fill="#161C21", stroke="#161C21", arc=0))
     n.append(txt(p + "back", "←", x + 18, y + 12, 30, 36, 20, TEXT, align="center"))
     n.append(txt(p + "ttl", "Settings", x + 56, y + 12, 200, 36, 20, TEXT, mono=False))
     items = [
         ("cat", "Me", None), ("row", "My name", "Deckhand"),
-        ("cat", "Channel", None), ("row", "Channel name", "CREW RADIO"),
+        ("cat", "Channel", None), ("row", "Channel name", "CREW RADIO"), ("row", "Channel key", "q7wk-m3xv-pd2h"),
         ("cat", "Talking", None),
         ("sw", "Full duplex", "Off: hold to talk, others muted meanwhile. On: tap to toggle, everyone heard at once.", False),
         ("row", "Talk button", "Headset button and volume keys"),
@@ -234,7 +234,7 @@ diagram("screens", "The screens", nodes=(
 diagram("screen-main", "Main screen", nodes=main_screen("a", 20, 20, "on"), edges=[], width=400, height=800)
 diagram("screen-on-air", "On air", nodes=main_screen("a", 20, 20, "air"), edges=[], width=400, height=800)
 diagram("screen-status", "Status screen", nodes=status_screen("s", 20, 20), edges=[], width=400, height=800)
-diagram("screen-settings", "Settings screen", nodes=settings_screen("s", 20, 20), edges=[], width=400, height=920)
+diagram("screen-settings", "Settings screen", nodes=settings_screen("s", 20, 20), edges=[], width=400, height=980)
 
 
 # ================================================================ flowcharts

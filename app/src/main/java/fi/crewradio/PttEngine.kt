@@ -340,6 +340,19 @@ class PttEngine(
     private val nodes = ConcurrentHashMap<Int, Node>()
     private val seqTracker = SeqTracker()                            // per sender audio sequence: gaps mean lost frames
     private val rateLimiter = RateLimiter()                          // a sender beyond its budget is dropped before it costs anything
+
+    /** Seals and opens every packet; null until [channelKey] is set, and then nothing is sent or accepted either. */
+    @Volatile private var crypto: ChannelCrypto? = null
+    private var cryptoFor: String? = null
+
+    /** The crew's channel key. Deriving the packet key takes a moment, so it is done once per value. */
+    var channelKey: String = ""
+        set(value) {
+            if (value == field && cryptoFor == value) return
+            field = value
+            crypto = if (value.isEmpty()) null else ChannelCrypto.forChannelKey(value)
+            cryptoFor = value
+        }
     private var heartbeat: ScheduledExecutorService? = null
     @Volatile private var lastRoster: List<Peer> = emptyList()
     private var lastRosterKey = ""
@@ -486,9 +499,11 @@ class PttEngine(
 
     /** Stamps and sends one of our own packets on every transport. */
     private fun broadcast(codec: Packet.Codec, payload: ByteArray) {
+        val cr = crypto ?: return                                   // no key, nothing goes on the air
         val s = (if (codec == Packet.Codec.HELLO) helloSeq else audioSeq).getAndIncrement()
         markSeen(senderId, s, codec)
-        val packet = Packet.encode(senderId, s, codec, maxHops, payload)
+        val header = Packet.encode(senderId, s, codec, maxHops, ByteArray(0))
+        val packet = header + cr.seal(Packet.aadOf(header), payload)
         val c = counters
         c.txPackets.incrementAndGet()
         c.txBytes.addAndGet(packet.size.toLong())
@@ -502,6 +517,10 @@ class PttEngine(
         val h = Packet.parse(p) ?: run { c.rejected.incrementAndGet(); return }
         if (h.senderId == senderId) return
         if (!rateLimiter.allow(h.senderId, SystemClock.elapsedRealtime())) { c.rejected.incrementAndGet(); return }
+        // Authenticate before anything else: a packet without the crew's key must not reach the
+        // seen-cache (a forged sender+number would shadow the real packet), the relay or the roster.
+        val cr = crypto ?: return
+        val plain = cr.open(Packet.aadOf(p), p, Packet.HEADER, p.size - Packet.HEADER) ?: run { c.rejected.incrementAndGet(); return }
         if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
         c.rxPackets.incrementAndGet()
         c.rxBytes.addAndGet(p.size.toLong())
@@ -520,7 +539,7 @@ class PttEngine(
 
         if (h.codec == Packet.Codec.HELLO) {
             c.hellos.incrementAndGet()
-            Hello.decode(p, Packet.HEADER, p.size - Packet.HEADER)?.let { heardHello(h.senderId, it, from, h.ttl) }
+            Hello.decode(plain, 0, plain.size)?.let { heardHello(h.senderId, it, from, h.ttl) }
             return
         }
         heardAudio(h.senderId, from)
@@ -540,8 +559,8 @@ class PttEngine(
         if (!playing) return
 
         when (h.codec) {
-            Packet.Codec.PCM -> mixer.push(h.senderId, p, Packet.HEADER, p.size - Packet.HEADER)
-            Packet.Codec.OPUS -> decodeOpus(h.senderId, p)
+            Packet.Codec.PCM -> mixer.push(h.senderId, plain, 0, plain.size)
+            Packet.Codec.OPUS -> decodeOpus(h.senderId, plain)
             Packet.Codec.HELLO -> Unit                        // handled above
         }
     }
@@ -636,7 +655,7 @@ class PttEngine(
         }
         synchronized(dec) {
             try {
-                dec.decode(p, Packet.HEADER, p.size - Packet.HEADER) { frame ->
+                dec.decode(p, 0, p.size) { frame ->
                     mixer.push(sender, frame, 0, frame.size)
                 }
             } catch (e: Exception) {

@@ -3,9 +3,13 @@ package fi.crewradio
 import java.nio.ByteBuffer
 
 /**
- * Wire format, version 2. 13-byte header, big-endian integers:
+ * Wire format, version 3. 13-byte header, big-endian integers, then the sealed payload:
  *
- *     'P' 'T' | version u8 = 2 | codec u8 | ttl u8 | senderId int32 | seq int32 | payload
+ *     'P' 'T' | version u8 = 3 | codec u8 | ttl u8 | senderId int32 | seq int32 | nonce (12) | ciphertext | tag (16)
+ *
+ * The payload is AES-256-GCM under the crew's channel key ([ChannelCrypto]) with the header as
+ * associated data, except the ttl byte, which relays rewrite in place ([aadOf]). Without the
+ * key a packet cannot be read or forged; a header field cannot be altered in flight either.
  *
  * codec: 0 = one 20 ms frame of PCM16LE 16 kHz mono, 1 = one 20 ms Opus packet,
  *        2 = a [Hello] roster heartbeat (no audio). A build that predates hello drops
@@ -20,7 +24,7 @@ import java.nio.ByteBuffer
  */
 object Packet {
     const val HEADER = 13
-    const val VERSION = 2
+    const val VERSION = 3
     /** Largest packet a peer may send: a PCM frame with header is 653 bytes, Opus far less. Anything bigger is dropped unread. */
     const val MAX_SIZE = 1024
 
@@ -56,6 +60,9 @@ object Packet {
         val bb = ByteBuffer.wrap(p, 5, 8)
         return Header(bb.int, bb.int, codec, ttl)
     }
+
+    /** The header as authenticated: a copy of the first [HEADER] bytes with the ttl zeroed, since relays change it. */
+    fun aadOf(p: ByteArray): ByteArray = p.copyOf(HEADER).also { it[4] = 0 }
 
     /** Rewrites the ttl byte of an already encoded packet in place, clamped to the byte range. */
     fun setTtl(p: ByteArray, ttl: Int) {

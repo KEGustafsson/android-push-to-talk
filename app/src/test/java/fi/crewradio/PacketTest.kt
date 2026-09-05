@@ -32,6 +32,16 @@ class PacketTest {
     }
 
     @Test
+    fun aadIsTheHeaderWithoutTheTtl() {
+        val a = Packet.aadOf(Packet.encode(9, 8, Packet.Codec.OPUS, 4, payload))
+        val b = Packet.aadOf(Packet.encode(9, 8, Packet.Codec.OPUS, 1, payload))
+        assertEquals(Packet.HEADER, a.size)
+        assertArrayEquals(a, b)
+        assertEquals(0, a[4].toInt())
+        assertEquals(Packet.VERSION, a[2].toInt())
+    }
+
+    @Test
     fun helloIsAKnownCodec() {
         val p = Packet.encode(1, 1, Packet.Codec.HELLO, 4, Hello("n", 0, 4).encode())
         assertEquals(Packet.Codec.HELLO, Packet.parse(p)!!.codec)

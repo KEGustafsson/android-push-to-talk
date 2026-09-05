@@ -40,9 +40,14 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   SharedPreferences; `Prefs` reads them with validated fallbacks and `SettingsRules` holds the
   pure, unit-tested validation. Duplex mode, relay, codec, name and hop limit are pushed into
   the engine on every bind and resume (the settings, not the engine, are the source of truth);
-  group/port/passphrase are constructor arguments of the transports, so they need a reconnect.
+  group/port/channel key are constructor arguments of the transports, so they need a reconnect.
   Sample rate is deliberately not a setting: 16 kHz is baked into the Opus path and the decimator.
-- `Packet`: 13-byte header `'P' 'T' | version=2 | codec | ttl | senderId int32 | seq int32 | payload`.
+- `Packet`: 13-byte header `'P' 'T' | version=3 | codec | ttl | senderId int32 | seq int32 | nonce(12) | ciphertext | tag(16)`.
+  The payload is AES-256-GCM under the channel key (`ChannelCrypto`, key by PBKDF2, random nonce
+  per packet, header-minus-ttl as AAD). The engine opens a packet right after the rate limit and
+  before the seen-cache; anything that fails is `rejected`. `Prefs.channelKey` is generated at
+  random on first use (no default) and doubles as the Aware passphrase; `docs/SECURITY.md` has the
+  threat model.
   Codec 0 = PCM16LE frame, 1 = Opus packet, 2 = `Hello` roster heartbeat (no audio; older
   builds drop it as unknown, so it needed no version bump). Receivers decode per packet, so codecs can mix.
   `seq` is per sender and per kind: audio frames count in one sequence, hellos in another.

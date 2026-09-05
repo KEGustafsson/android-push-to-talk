@@ -50,11 +50,15 @@ echo cancellation and noise suppression), the AOSP Opus codec through `MediaCode
 ## Packets and the mesh
 
 ```
-'P' 'T' | version = 2 | codec | ttl | senderId int32 | seq int32 | payload
+'P' 'T' | version = 3 | codec | ttl | senderId int32 | seq int32 | nonce (12) | ciphertext | tag (16)
 ```
 
 Codec 0 is a PCM16 frame, 1 an Opus packet, 2 a `Hello` (roster heartbeat: name, transport
-flags, hop budget). Audio frames and hellos number themselves independently per sender.
+flags, hop budget). Audio frames and hellos number themselves independently per sender. The
+payload is sealed by `ChannelCrypto` (AES‑256‑GCM, random nonce per packet, key derived from
+the channel key by PBKDF2) with the header minus the ttl byte as associated data; the engine
+opens every packet before the seen-cache, the relay or the roster see it, so nothing without
+the crew's key gets anywhere. See [SECURITY.md](SECURITY.md) for the threat model.
 
 <img src="images/packet-flow.png" alt="What happens to a received packet" width="640">
 
@@ -116,8 +120,9 @@ app.
 `Prefs` reads them with validated fallbacks and `SettingsRules` holds the pure, unit-tested
 validation. Mode, relay, codec, name, hop limit, audio route and the talk-key settings are pushed
 into the engine on every bind and resume (the settings, not the engine, are the source of
-truth); group, port and passphrase are constructor arguments of the transports, so they need
-a rejoin.
+truth); group, port and the channel key (also the Aware passphrase) are constructor arguments
+of the transports, so they need a rejoin. The channel key is generated at random on first use
+(`Prefs.channelKey`), never defaulted.
 
 ## Layout
 
@@ -130,6 +135,7 @@ a rejoin.
 | `PttEngine` | Transports, roster, relay, sequence tracking, concealment, talk state, voice gate |
 | `CallService`, `CallBridge` | Opt-in self-managed Telecom call for hang-up-style headset buttons |
 | `Packet`, `Hello`, `SeqTracker` | Wire header, roster heartbeat payload, per-sender sequence admission |
+| `ChannelCrypto`, `RateLimiter` | AES-GCM sealing of every packet under the channel key; per-sender packet budget |
 | `audio/AudioConfig` | 16 kHz, 20 ms, frame sizes |
 | `audio/AudioCapture`, `audio/AudioPlayback` | Mic in, speaker out, each on its own thread |
 | `audio/OpusEncoder`, `audio/OpusDecoder`, `audio/Decimator` | Platform Opus and the 48 → 16 kHz step |

@@ -12,7 +12,8 @@ import fi.crewradio.audio.AudioConfig
 object SettingsRules {
     const val DEFAULT_GROUP = "239.255.42.1"
     const val DEFAULT_PORT = 47474
-    const val DEFAULT_PASSPHRASE = "crew-radio"
+    /** Characters a generated channel key is made of: no 0/O, 1/l/I, so it survives being read out loud. */
+    const val KEY_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
     const val DEFAULT_HOPS = AudioConfig.DEFAULT_TTL
 
     /** Empty means "use the device name"; otherwise it has to fit a [Hello] and stay on one line. */
@@ -30,9 +31,16 @@ object SettingsRules {
     /** An unprivileged port. */
     fun validPort(s: String): Boolean = s.trim().toIntOrNull()?.let { it in 1024..65535 } == true
 
-    /** What WifiAwareNetworkSpecifier.setPskPassphrase accepts: 8–63 printable ASCII characters. */
+    /**
+     * The channel key: what WifiAwareNetworkSpecifier.setPskPassphrase accepts, 8–63 printable
+     * ASCII characters, since the same key is the Aware passphrase and the packet key.
+     */
     fun validPassphrase(s: String): Boolean =
         s.length in 8..63 && s.all { it.code in 0x20..0x7E }
+
+    /** A fresh random channel key, `xxxx-xxxx-xxxx` from [KEY_ALPHABET]: 14 characters, ~59 bits, readable aloud. */
+    fun generateChannelKey(random: java.util.Random = java.security.SecureRandom()): String =
+        (1..3).joinToString("-") { (1..4).map { KEY_ALPHABET[random.nextInt(KEY_ALPHABET.length)] }.joinToString("") }
 
     /** The header name: short enough to stay on one line at 30 sp. Empty means the app name. */
     fun validCrewName(s: String): Boolean = s.trim().length <= 24 && s.none { it == '\r' || it == '\n' }
@@ -58,7 +66,20 @@ class Prefs(context: Context) {
     val name: String? get() = sp.getString(KEY_NAME, null)?.trim()?.takeIf { it.isNotEmpty() && SettingsRules.validName(it) }
     val group: String get() = sp.getString(KEY_GROUP, null)?.trim()?.takeIf { SettingsRules.validGroup(it) } ?: SettingsRules.DEFAULT_GROUP
     val port: Int get() = sp.getString(KEY_PORT, null)?.trim()?.takeIf { SettingsRules.validPort(it) }?.toInt() ?: SettingsRules.DEFAULT_PORT
-    val passphrase: String get() = sp.getString(KEY_PASSPHRASE, null)?.takeIf { SettingsRules.validPassphrase(it) } ?: SettingsRules.DEFAULT_PASSPHRASE
+    /**
+     * The crew's channel key: the Wi-Fi Aware passphrase and the packet encryption key. Never a
+     * shared default: a phone without one generates a random key on first use (secure by default)
+     * and the crew copies it to the other phones. An old install's Aware passphrase, if it was
+     * changed from the former default, carries over so an existing crew keeps working.
+     */
+    val channelKey: String
+        get() {
+            sp.getString(KEY_CHANNEL_KEY, null)?.takeIf { SettingsRules.validPassphrase(it) }?.let { return it }
+            val legacy = sp.getString(KEY_LEGACY_PASSPHRASE, null)?.takeIf { SettingsRules.validPassphrase(it) && it != "crew-radio" }
+            val key = legacy ?: SettingsRules.generateChannelKey()
+            sp.edit().putString(KEY_CHANNEL_KEY, key).apply()
+            return key
+        }
     val hops: Int get() = sp.getString(KEY_HOPS, null)?.trim()?.takeIf { SettingsRules.validHops(it) }?.toInt() ?: SettingsRules.DEFAULT_HOPS
 
     val fullDuplex: Boolean get() = sp.getBoolean(KEY_FULL_DUPLEX, false)
@@ -87,7 +108,8 @@ class Prefs(context: Context) {
         const val KEY_NAME = "display_name"
         const val KEY_GROUP = "multicast_group"
         const val KEY_PORT = "lan_port"
-        const val KEY_PASSPHRASE = "aware_passphrase"
+        const val KEY_CHANNEL_KEY = "channel_key"
+        const val KEY_LEGACY_PASSPHRASE = "aware_passphrase"
         const val KEY_HOPS = "max_hops"
 
         const val KEY_HW_BUTTON = "hw_button"
