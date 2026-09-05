@@ -1,0 +1,111 @@
+name: Build
+
+# Every push and pull request: the `build` job runs the unit tests and a release-type APK signed
+# with the debug key, uploaded as a workflow artifact. It has a read-only token, no persisted
+# credentials and no secrets, so pull-request Gradle code can reach nothing sensitive.
+#
+# Every push to main: the `release` job builds again with the crew's release key from the
+# repository secrets and attaches CrewRadio-<version>.apk to a GitHub Release tagged v<version>.
+# The version is the commit count on main (see app/build.gradle.kts), so nobody bumps numbers.
+# Secrets: CREWRADIO_KEYSTORE_BASE64 (the .keystore file, base64), CREWRADIO_KEYSTORE_PASSWORD,
+# CREWRADIO_KEY_ALIAS, CREWRADIO_KEY_PASSWORD.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the version is the commit count
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests and APK (debug-signed)
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testDebugUnitTest assembleRelease
+          VERSION=$(./gradlew --no-daemon -q printVersion | tail -1)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cp app/build/outputs/apk/release/app-release.apk "CrewRadio-$VERSION-debugsigned.apk"
+
+      - name: Test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CrewRadio-${{ env.VERSION }}-debugsigned
+          path: CrewRadio-${{ env.VERSION }}-debugsigned.apk
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      KEYSTORE_BASE64: ${{ secrets.CREWRADIO_KEYSTORE_BASE64 }}
+      CREWRADIO_KEYSTORE_PASSWORD: ${{ secrets.CREWRADIO_KEYSTORE_PASSWORD }}
+      CREWRADIO_KEY_ALIAS: ${{ secrets.CREWRADIO_KEY_ALIAS }}
+      CREWRADIO_KEY_PASSWORD: ${{ secrets.CREWRADIO_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Release keystore from secrets
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "CREWRADIO_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Signed release APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          VERSION=$(./gradlew --no-daemon -q printVersion | tail -1)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cp app/build/outputs/apk/release/app-release.apk "CrewRadio-$VERSION.apk"
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Crew Radio ${{ env.VERSION }}
+          body: |
+            Built from ${{ github.sha }}. Every phone on the crew must run the same version.
+            Install: open this page on the phone, download the APK, allow the install.
+          files: CrewRadio-${{ env.VERSION }}.apk
