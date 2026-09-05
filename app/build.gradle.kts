@@ -1,4 +1,3 @@
-import java.io.ByteArrayOutputStream
 import java.time.Instant
 
 plugins {
@@ -8,13 +7,10 @@ plugins {
 
 /** Output of a git command run in the repository, or empty when git is unavailable (a source download, say). */
 fun git(vararg args: String): String = try {
-    val out = ByteArrayOutputStream()
-    exec {
+    providers.exec {
         commandLine("git", *args)
-        standardOutput = out
         isIgnoreExitValue = true
-    }
-    out.toString().trim()
+    }.standardOutput.asText.get().trim()
 } catch (_: Exception) { "" }
 
 // Versions come from git, so every merge is a new version without anyone editing a number:
@@ -70,7 +66,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
+}
+
+kotlin {
+    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 }
 
 /**
