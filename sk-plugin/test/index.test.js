@@ -190,12 +190,25 @@ test("a WLAN link that cannot open is reported and retried; the satellite still 
   }
 });
 
-test("a non-loopback satellite bind is allowed but warned about", async () => {
+test("a non-loopback satellite bind without an allowlist falls back to loopback and says so", async () => {
   FakeLink.last = undefined;
   const app = fakeApp();
   const p = plugin(app, { LanLink: FakeLink });
   p.start({ channelKey: KEY, satellitePort: 0, satelliteHost: "0.0.0.0" });
-  await p.satelliteListening;
-  assert.ok(app.errors.some((e) => /anyone who can reach port/.test(e)));
+  const addr = await p.satelliteListening;
+  assert.equal(addr.address, "127.0.0.1");
+  assert.ok(app.errors.some((e) => /needs an allowlist/.test(e)));
+  p.stop();
+});
+
+test("a non-loopback satellite bind with an allowlist is honoured, and the list reaches the satellite", async () => {
+  FakeLink.last = undefined;
+  const app = fakeApp();
+  const p = plugin(app, { LanLink: FakeLink });
+  p.start({ channelKey: KEY, satellitePort: 0, satelliteHost: "0.0.0.0", satelliteAllowFrom: ["10.10.10.0/24", " "] });
+  const addr = await p.satelliteListening;
+  assert.equal(addr.address, "0.0.0.0");
+  assert.deepEqual(app.errors, []);
+  assert.ok(app.log.some((m) => /clients limited to 10\.10\.10\.0\/24/.test(m)));
   p.stop();
 });

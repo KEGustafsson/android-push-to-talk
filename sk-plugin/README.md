@@ -74,7 +74,8 @@ and restart the server. Then, in the Signal K admin UI:
 | Multicast group, UDP port | 239.255.42.1, 47474 | Must match the phones' WLAN settings. |
 | Network interface | auto | wlan first, then eth/en, then anything with an IPv4 address. |
 | Hop budget | 4 | How far phones may relay the server's packets. |
-| Wyoming satellite port, bind address | 10701, 127.0.0.1 | What signalk-wyoming connects to. The protocol has no authentication, so the satellite listens on loopback unless you widen it for an orchestrator on another host. |
+| Wyoming satellite port, bind address | 10701, 127.0.0.1 | What signalk-wyoming connects to. The protocol has no authentication, so the satellite listens on loopback unless you widen it for an orchestrator on another host, and then only with the allowlist below. |
+| Orchestrator addresses allowed to connect | | Addresses or IPv4 ranges (10.10.10.0/24) that may connect when the bind address is not loopback; everyone else is refused. Loopback is always allowed. |
 | Satellite id | crewradio | The id given in signalk-wyoming; the bridge targets it. |
 | Chime | on | Two notes before each announcement. |
 | Wait for a gap in talk | 2000 ms | An announcement waits this long at most before cutting in. |

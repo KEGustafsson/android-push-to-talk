@@ -4,7 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const net = require("node:net");
-const { encodeEvent, EventDecoder, SatelliteServer, MAX_DATA, MAX_PAYLOAD, MAX_ANNOUNCEMENT_MS } = require("../lib/wyoming");
+const { encodeEvent, EventDecoder, SatelliteServer, MAX_DATA, MAX_PAYLOAD, MAX_ANNOUNCEMENT_MS, parseAllow, normaliseIp } = require("../lib/wyoming");
 
 test("framing: header line, optional data block, optional payload, any split", () => {
   const payload = Buffer.from([1, 2, 3, 4, 5]);
@@ -125,6 +125,34 @@ test("satellite: an announcement longer than the cap is dropped, not resampled",
     await c.next("played");
     assert.equal(played.length, 0, "a rate outside 8-48 kHz is refused");
     c.sock.destroy();
+  } finally {
+    await sat.close();
+  }
+});
+
+test("satellite allowlist: loopback always, listed addresses and IPv4 ranges, nothing else; malformed entries are ignored", () => {
+  const sat = new SatelliteServer({ identity: { name: "Boat" }, play: async () => {}, allowFrom: ["10.10.10.0/24", "192.168.0.34", " ", "bad/99", "2001:db8::7"] });
+  assert.equal(sat.allow.length, 3);
+  for (const ok of ["127.0.0.1", "127.0.0.9", "::1", "::ffff:127.0.0.1", "10.10.10.77", "::ffff:10.10.10.1", "192.168.0.34", "2001:db8::7"]) assert.equal(sat.allowed(ok), true, ok);
+  for (const no of ["10.10.11.1", "192.168.0.35", "fe80::1", "", undefined, "999.1.1.1"]) assert.equal(sat.allowed(no), false, String(no));
+  const none = new SatelliteServer({ identity: { name: "Boat" }, play: async () => {} });
+  assert.equal(none.allowed("127.0.0.1"), true);
+  assert.equal(none.allowed("192.168.0.34"), false);
+  assert.equal(parseAllow("0.0.0.0/0")("8.8.8.8"), true);
+  assert.equal(parseAllow("10.0.0.0/33"), null);
+  assert.equal(normaliseIp("::ffff:1.2.3.4"), "1.2.3.4");
+});
+
+test("satellite: a client outside the allowlist is dropped before it can send anything", async () => {
+  // Every connection in a test comes from loopback, so the allowlist is exercised by narrowing what loopback means:
+  const sat = new SatelliteServer({ identity: { name: "Boat" }, play: async () => { throw new Error("must not play"); } });
+  sat.allowed = () => false;
+  const addr = await sat.listen(0, "127.0.0.1");
+  try {
+    const c = client(addr.port);
+    await c.ready;
+    await new Promise((r) => c.sock.on("close", r));
+    assert.equal(sat.connected, false);
   } finally {
     await sat.close();
   }

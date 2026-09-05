@@ -26,4 +26,6 @@ First release.
 
 - Packets are authenticated before duplicate suppression, so a forged header cannot displace an
   authentic packet. The Wyoming decoder caps header, data and payload sizes; an announcement is
-  refused outside 8-48 kHz or two channels, and dropped beyond 60 s.
+  refused outside 8-48 kHz or two channels, and dropped beyond 60 s. The satellite accepts
+  loopback clients only unless an allowlist of orchestrator addresses is configured, and a
+  non-loopback bind without one falls back to loopback.

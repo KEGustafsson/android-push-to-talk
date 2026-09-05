@@ -112,15 +112,25 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
       identity: { name: cfg.nodeName, description: "Crew Radio channel (signalk-crewradio)", version: pkg.version },
       log: (m) => app.debug(m),
       play: (audio) => announce(audio, cfg),
+      allowFrom: cfg.satelliteAllowFrom,
     });
     satellite.on("connect", () => { assistantConnected = true; status(); });
     satellite.on("disconnect", () => { assistantConnected = false; status(); });
     satellite.on("error", (e) => app.error(`Wyoming satellite: ${e.message}`));
     // The Wyoming protocol has no authentication: whoever can reach this port can make the crew
-    // hear anything. signalk-wyoming runs on this host, so loopback is the default; a wider bind
-    // is a deliberate setting, and the log says so.
-    if (!isLoopback(cfg.satelliteHost)) app.error(`Wyoming satellite bound to ${cfg.satelliteHost}: anyone who can reach port ${cfg.satellitePort} can speak on the channel`);
-    plugin.satelliteListening = satellite.listen(cfg.satellitePort, cfg.satelliteHost).then(
+    // hear anything. signalk-wyoming runs on this host, so loopback is the default. A wider bind
+    // is only taken together with an allowlist of the orchestrator's address(es); the satellite
+    // itself refuses every other client, and without a list it stays on loopback and says so.
+    let bindHost = cfg.satelliteHost;
+    if (!isLoopback(bindHost)) {
+      if (cfg.satelliteAllowFrom.length === 0) {
+        app.error(`Wyoming satellite: bind address ${bindHost} needs an allowlist of orchestrator addresses; listening on 127.0.0.1 instead`);
+        bindHost = "127.0.0.1";
+      } else {
+        app.debug(`Wyoming satellite on ${bindHost}:${cfg.satellitePort}, clients limited to ${cfg.satelliteAllowFrom.join(", ")}`);
+      }
+    }
+    plugin.satelliteListening = satellite.listen(cfg.satellitePort, bindHost).then(
       (a) => { app.debug(`Wyoming satellite listening on ${a.address}:${a.port}`); return a; },
       (e) => { app.setPluginError(`Wyoming satellite: ${e.message}`); return null; },
     );
@@ -225,6 +235,7 @@ function withDefaults(o, app) {
     hops: Number(o.hops ?? 4),
     satellitePort: Number(o.satellitePort ?? 10701),
     satelliteHost: String(o.satelliteHost ?? "127.0.0.1").trim() || "127.0.0.1",
+    satelliteAllowFrom: (Array.isArray(o.satelliteAllowFrom) ? o.satelliteAllowFrom : []).map((a) => String(a).trim()).filter(Boolean),
     satelliteId: String(o.satelliteId ?? "crewradio").trim() || "crewradio",
     chime: o.chime ?? true,
     waitForSilenceMs: Number(o.waitForSilenceMs ?? 2000),
@@ -265,7 +276,8 @@ function schema(app) {
       iface: { type: "string", title: "Network interface", default: "auto", description: "Interface on the boat WLAN (e.g. wlan0). auto: a wlan interface, else eth/en, else the first with an IPv4 address." },
       hops: { type: "integer", title: "Hop budget", default: 4, minimum: 1, maximum: 8, description: "How far phones may relay the server's packets over Bluetooth and Wi-Fi Aware." },
       satellitePort: { type: "integer", title: "Wyoming satellite port", default: 10701, minimum: 1024, maximum: 65535, description: "Add a satellite in signalk-wyoming with host 127.0.0.1 and this port, id \"crewradio\" (or the id below), and no wake words (speaker only)." },
-      satelliteHost: { type: "string", title: "Wyoming satellite bind address", default: "127.0.0.1", description: "Leave at 127.0.0.1 when signalk-wyoming runs on this server. The Wyoming protocol has no authentication, so a wider address lets anyone who can reach the port speak on the channel; only use one on a network you trust, for an orchestrator on another host." },
+      satelliteHost: { type: "string", title: "Wyoming satellite bind address", default: "127.0.0.1", description: "Leave at 127.0.0.1 when signalk-wyoming runs on this server. The Wyoming protocol has no authentication; a wider address is taken only together with the allowlist below, and everyone not on it is refused." },
+      satelliteAllowFrom: { type: "array", title: "Orchestrator addresses allowed to connect", items: { type: "string" }, default: [], description: "For an orchestrator on another host: its address, or an IPv4 range such as 10.10.10.0/24. Loopback is always allowed. Empty: loopback only, whatever the bind address." },
       satelliteId: { type: "string", title: "Satellite id in signalk-wyoming", default: "crewradio", description: "The id you gave this satellite in signalk-wyoming; the bridge targets it. Must match ^[a-zA-Z0-9_-]+$." },
       chime: { type: "boolean", title: "Chime before each announcement", default: true },
       waitForSilenceMs: { type: "integer", title: "Wait for a gap in talk (ms)", default: 2000, minimum: 0, maximum: 30000, description: "An announcement waits this long at most for the crew to stop talking before it cuts in." },
