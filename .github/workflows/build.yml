@@ -120,7 +120,8 @@ jobs:
           [ -n "$APKSIGNER" ] || { echo "::error::apksigner not found"; exit 1; }
           CERTS=$("$APKSIGNER" verify --print-certs "CrewRadio-$VERSION.apk" 2>&1) || { echo "$CERTS"; echo "::error::apksigner verify failed"; exit 1; }
           echo "$CERTS" | grep -i "certificate SHA-256 digest"
-          ACTUAL=$(echo "$CERTS" | grep -i "Signer #1 certificate SHA-256 digest" | head -1 | sed 's/.*digest: *//' | tr -d '[:space:]' | tr 'A-F' 'a-f')
+          # apksigner labels the line "Signer #1 certificate SHA-256 digest:" or, from build-tools 37, "V2 Signer: certificate SHA-256 digest:"
+          ACTUAL=$(echo "$CERTS" | grep -i "certificate SHA-256 digest" | head -1 | sed 's/.*digest: *//' | tr -d '[:space:]' | tr 'A-F' 'a-f')
           echo "signer certificate sha256: $ACTUAL"
           if [ -z "$EXPECTED_CERT_SHA256" ]; then echo "::error::repository variable CREWRADIO_CERT_SHA256 is not set"; exit 1; fi
           if [ "$ACTUAL" != "$EXPECTED_CERT_SHA256" ]; then echo "::error::APK is not signed with the crew's release certificate"; exit 1; fi
