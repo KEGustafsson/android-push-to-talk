@@ -6,15 +6,17 @@ WLAN multicast, Bluetooth Classic RFCOMM and Wi-Fi Aware, with an app-level
 flooding relay so multiple transports and multi-hop topologies work.
 
 ## Stack
-- Kotlin 2.3, Android Gradle Plugin 8.13 (its R8 supports Kotlin up to 2.3, so Kotlin 2.4 waits for a newer AGP), Gradle 8.14, compileSdk 36, minSdk 29, targetSdk 34, JDK 17.
+- Android Gradle Plugin 9.4 with its built-in Kotlin (the Kotlin Android plugin is applied nowhere; the root
+  build puts Kotlin 2.4 on the build classpath, which is how the built-in compiler is moved past AGP's
+  default), Gradle 9.7, compileSdk 37, minSdk 29, targetSdk 34, JDK 17.
   Dependabot keeps AndroidX current; the toolchain itself (AGP, Kotlin, Gradle majors, compileSdk)
-  is moved by hand, since a new AndroidX generation often needs a newer compileSdk (core 1.19
-  wants 37, which has no stable platform yet).
+  is moved by hand, since a new AndroidX generation often needs a newer compileSdk or AGP (core 1.19
+  needed AGP 9.1). AGP 10 will make the new Variant API mandatory; nothing here uses the old one.
 - No third-party audio libs. 16 kHz mono, 20 ms frames (see `audio/AudioConfig`); on the wire
   as Opus through the platform `MediaCodec` (`audio/opus`, AOSP software codec since API 29)
   or raw PCM16. The AOSP Opus decoder always outputs 48 kHz, hence `audio/Decimator`.
 - Build: `./gradlew assembleDebug` (wrapper is committed; needs an Android SDK with
-  platform 36 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+  platform 37 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
 - Versions come from git in `app/build.gradle.kts`: `versionCode` = commit count, `versionName` =
   `1.<count>`, `BuildConfig.GIT_SHA` on the Status screen. Never edit version numbers by hand.
 - Release pipeline: `.github/workflows/build.yml`. The `build` job (every push/PR; read-only
@@ -175,9 +177,7 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - Status/errors are reported, never swallowed silently, except transient send failures.
 
 ## Known gaps / roadmap
-Nothing planned. Wi-Fi Direct was considered and dropped (2026-09-05): it needs a group owner
-(a master, the one thing the design avoids), an on-screen accept on first contact, and on many
-phones it displaces the normal WLAN link; one phone's hotspot plus the WLAN transport gives the
-same range on every phone with no new code, and the README says so. Next is a field test on the
-water: voice-keying thresholds in wind and engine noise, real Aware/Bluetooth ranges, multi-hop
-under way, a full day's battery.
+Nothing planned. Field testing is continuous on the Nokia 7.2, S20 FE and S25 (with a Jabra
+Evolve2 65 on the S25): voice-keying thresholds in wind and engine noise, real Aware/Bluetooth
+ranges, multi-hop under way, a full day's battery. Transports are WLAN, Bluetooth Classic and
+Wi-Fi Aware, and that list is final.
