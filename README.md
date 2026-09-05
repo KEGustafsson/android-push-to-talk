@@ -38,6 +38,12 @@ no account, no internet, no subscription. Connecting people, with what is in the
    others. Everything on the air is encrypted with it, and only phones that have it can join.
 4. Every phone on the crew must run the **same version**. The Status screen (menu ⋮ › Status)
    shows the version at the bottom of *This phone*.
+5. **Verifying a download** (optional): each Release also carries the APK's SHA‑256
+   (`CrewRadio-<version>.apk.sha256`), a software bill of materials
+   (`CrewRadio-<version>.sbom.cdx.json`, CycloneDX) and a signed build provenance attestation.
+   On a computer, `sha256sum -c CrewRadio-<version>.apk.sha256` checks the file, and
+   `gh attestation verify CrewRadio-<version>.apk --repo KEGustafsson/android-push-to-talk`
+   proves it was built by this repository's workflow from the commit named in the release.
 
 ## Quick start
 

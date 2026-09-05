@@ -132,9 +132,12 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
 - CI: actions pinned to commit SHAs (Dependabot bumps them), CodeQL on push/PR/weekly, the
   `release` job attaches an SBOM (`gradlew sbom`, CycloneDX 1.5 from the release runtime
   classpath, no plugin) plus a SHA-256 and a build-provenance attestation to every Release.
-- Engine: `Packet.MAX_SIZE` drops oversized packets unread; `RateLimiter` (pure, tested) drops a
-  sender beyond 75 packets/s (burst 150) before relay, decoder or mixer see it; both count as
-  `rejected` on the Status screen.
+- Engine: `Packet.MAX_SIZE` drops oversized packets unread; `RateLimiter` (pure, tested) charges a
+  global bucket (400/s, burst 800) and then a per-sender one (75/s, burst 150, at most 128 senders,
+  idle ones swept) before the packet is opened, relayed, decoded or mixed; the AEAD check comes right
+  after. All of it counts as `rejected` on the Status screen.
+- Release job: fails closed without the keystore secrets and verifies the signer certificate against
+  the `CREWRADIO_CERT_SHA256` repository variable before attesting or publishing.
 
 ## Documentation
 - `README.md` is written for the crew (install, quick start, talk keys, headsets, settings);
