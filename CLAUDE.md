@@ -6,7 +6,7 @@ WLAN multicast, Bluetooth Classic RFCOMM and Wi-Fi Aware, with an app-level
 flooding relay so multiple transports and multi-hop topologies work.
 
 ## Stack
-- Kotlin 2.4, Android Gradle Plugin 8.13, Gradle 8.14, compileSdk 36, minSdk 29, targetSdk 34, JDK 17.
+- Kotlin 2.3, Android Gradle Plugin 8.13 (its R8 supports Kotlin up to 2.3, so Kotlin 2.4 waits for a newer AGP), Gradle 8.14, compileSdk 36, minSdk 29, targetSdk 34, JDK 17.
   Dependabot keeps AndroidX current; the toolchain itself (AGP, Kotlin, Gradle majors, compileSdk)
   is moved by hand, since a new AndroidX generation often needs a newer compileSdk (core 1.19
   wants 37, which has no stable platform yet).
