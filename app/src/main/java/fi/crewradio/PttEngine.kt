@@ -288,7 +288,7 @@ class PttEngine(
         set(value) {
             if (field == value) return
             field = value
-            if (isConnected && route.bluetoothHeadset) syncCall(true)
+            if (isConnected && route.bluetoothPresent) syncCall(true)
         }
 
     init {

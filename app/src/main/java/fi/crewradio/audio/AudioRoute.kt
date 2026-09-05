@@ -48,7 +48,11 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
     /** Called (on the main thread) when a Bluetooth headset becomes, or stops being, the wanted route. */
     var onBluetoothHeadset: ((Boolean) -> Unit)? = null
 
-    /** Called (on the main thread) after [onBluetoothHeadset] whenever [headset] or [bluetoothHeadset] changed. */
+    /**
+     * Called (on the main thread) whenever [headset] or [bluetoothHeadset] changed: the route in
+     * use, not the wanted one, so a consumer that tunes itself to the mic (the voice monitor)
+     * follows what the mic really is, also while a headset is still being retried.
+     */
     var onHeadsetChanged: (() -> Unit)? = null
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -57,10 +61,14 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
     private var scoDevice: AudioDeviceInfo? = null
     private var bluetoothWanted = false
 
-    /** True while a Bluetooth headset is the wanted route. */
-    val bluetoothHeadset: Boolean get() = bluetoothWanted
+    /** True while a Bluetooth headset is present and preferred, whether or not the switch to it has succeeded yet. */
+    val bluetoothPresent: Boolean get() = bluetoothWanted
 
-    /** True while any headset (Bluetooth, wired, USB) is the wanted route. */
+    /** True while a Bluetooth headset is the route in use (or Telecom's, while [passive]). */
+    @Volatile var bluetoothHeadset = false
+        private set
+
+    /** True while any headset (Bluetooth, wired, USB) is the route in use. */
     @Volatile var headset = false
         private set
 
@@ -137,6 +145,8 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) commDeviceListener?.let { audioManager.removeOnCommunicationDeviceChangedListener(it) }
         else try { context.unregisterReceiver(scoReceiver) } catch (e: Exception) { onStatus("Audio route: ${e.message}") }
         if (bluetoothWanted) { bluetoothWanted = false; onBluetoothHeadset?.invoke(false) }
+        headset = false
+        bluetoothHeadset = false
         passive = false
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -164,69 +174,79 @@ class AudioRoute(private val context: Context, private val onStatus: (String) ->
         val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         val headset = if (policy == Policy.AUTO) pickHeadset(outputs) else null
         val bluetooth = headset?.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
-        val bluetoothChanged = bluetooth != bluetoothWanted
-        val headsetChanged = (headset != null) != this.headset
-        bluetoothWanted = bluetooth
-        this.headset = headset != null
-        if (bluetoothChanged) handler.post { onBluetoothHeadset?.invoke(bluetooth) }
-        if (bluetoothChanged || headsetChanged) handler.post { onHeadsetChanged?.invoke() }
-        if (passive) return                                   // Telecom is routing; it reports the label itself
-        val earpiece = headset == null && (policy == Policy.EARPIECE || (policy == Policy.AUTO && atEar))
-        val label = when {
-            earpiece -> "Earpiece"
-            headset == null -> "Speaker"
-            bluetooth -> "Headset · " + headset.productName.toString().trim().ifEmpty { "Bluetooth" }
-            else -> "Wired headset"
+        if (bluetooth != bluetoothWanted) {
+            bluetoothWanted = bluetooth
+            handler.post { onBluetoothHeadset?.invoke(bluetooth) }
         }
-        val changed = label != current
-        current = label
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (headset != null) {
-                    // The communication device list may lag the output list by a moment, and the
-                    // switch itself can be refused while the link comes up: speaker for now, then retry.
-                    val dev = audioManager.availableCommunicationDevices.firstOrNull { it.id == headset.id }
-                        ?: audioManager.availableCommunicationDevices.firstOrNull { it.type == headset.type }
-                    if (dev != null && audioManager.setCommunicationDevice(dev)) {
-                        retries = 0
+        var applied = headset != null                         // false once the switch is refused: the phone's mic and ear until the retry
+        if (!passive) {                                       // Telecom is routing; it reports the label itself
+            val before = current
+            val earpiece = headset == null && (policy == Policy.EARPIECE || (policy == Policy.AUTO && atEar))
+            current = when {
+                earpiece -> "Earpiece"
+                headset == null -> "Speaker"
+                bluetooth -> "Headset · " + headset.productName.toString().trim().ifEmpty { "Bluetooth" }
+                else -> "Wired headset"
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (headset != null) {
+                        // The communication device list may lag the output list by a moment, and the
+                        // switch itself can be refused while the link comes up: speaker for now, then retry.
+                        val dev = audioManager.availableCommunicationDevices.firstOrNull { it.id == headset.id }
+                            ?: audioManager.availableCommunicationDevices.firstOrNull { it.type == headset.type }
+                        if (dev != null && audioManager.setCommunicationDevice(dev)) {
+                            retries = 0
+                        } else {
+                            audioManager.clearCommunicationDevice()
+                            current = "Speaker"
+                            applied = false
+                            retryLater()
+                        }
                     } else {
+                        retries = 0
                         audioManager.clearCommunicationDevice()
-                        current = "Speaker"
-                        retryLater()
+                        val type = if (earpiece) AudioDeviceInfo.TYPE_BUILTIN_EARPIECE else AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                        audioManager.availableCommunicationDevices.firstOrNull { it.type == type }
+                            ?.let { audioManager.setCommunicationDevice(it) }
                     }
                 } else {
-                    retries = 0
-                    audioManager.clearCommunicationDevice()
-                    val type = if (earpiece) AudioDeviceInfo.TYPE_BUILTIN_EARPIECE else AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
-                    audioManager.availableCommunicationDevices.firstOrNull { it.type == type }
-                        ?.let { audioManager.setCommunicationDevice(it) }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                when {
-                    headset == null -> {   // speakerphone on, or off for the earpiece
-                        if (scoDevice != null) { audioManager.stopBluetoothSco(); audioManager.isBluetoothScoOn = false; scoDevice = null }
-                        audioManager.isSpeakerphoneOn = !earpiece
-                    }
-                    bluetooth -> {
-                        audioManager.isSpeakerphoneOn = false
-                        if (scoDevice?.id != headset.id) {
-                            audioManager.startBluetoothSco()
-                            audioManager.isBluetoothScoOn = true
-                            scoDevice = headset
+                    @Suppress("DEPRECATION")
+                    when {
+                        headset == null -> {   // speakerphone on, or off for the earpiece
+                            if (scoDevice != null) { audioManager.stopBluetoothSco(); audioManager.isBluetoothScoOn = false; scoDevice = null }
+                            audioManager.isSpeakerphoneOn = !earpiece
+                        }
+                        bluetooth -> {
+                            audioManager.isSpeakerphoneOn = false
+                            if (scoDevice?.id != headset.id) {
+                                audioManager.startBluetoothSco()
+                                audioManager.isBluetoothScoOn = true
+                                scoDevice = headset
+                            }
+                        }
+                        else -> {   // wired: the platform routes to it once the speakerphone is off
+                            if (scoDevice != null) { audioManager.stopBluetoothSco(); audioManager.isBluetoothScoOn = false; scoDevice = null }
+                            audioManager.isSpeakerphoneOn = false
                         }
                     }
-                    else -> {   // wired: the platform routes to it once the speakerphone is off
-                        if (scoDevice != null) { audioManager.stopBluetoothSco(); audioManager.isBluetoothScoOn = false; scoDevice = null }
-                        audioManager.isSpeakerphoneOn = false
-                    }
                 }
+            } catch (e: Exception) {
+                onStatus("Audio route failed: ${e.message}")
+                applied = false
+                current = before
             }
-        } catch (e: Exception) {
-            onStatus("Audio route failed: ${e.message}")
-            return
+            if (announce && current != before) onStatus("Audio: $current")
         }
-        if (announce && changed) onStatus("Audio: $current")
+        routed(applied, applied && bluetooth)
+    }
+
+    /** Records the route in use and tells the engine when it changed. */
+    private fun routed(headset: Boolean, bluetooth: Boolean) {
+        if (headset == this.headset && bluetooth == bluetoothHeadset) return
+        this.headset = headset
+        bluetoothHeadset = bluetooth
+        handler.post { onHeadsetChanged?.invoke() }
     }
 
     /** A Bluetooth headset first (it is the one you wear on deck), then anything plugged in. */
