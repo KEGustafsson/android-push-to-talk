@@ -150,7 +150,7 @@ of the transports, so they need a rejoin. The channel key is generated at random
 
 ## Building and releasing
 
-`./gradlew assembleDebug testDebugUnitTest` with an Android SDK (platform 34). Unit tests are
+`./gradlew assembleDebug testDebugUnitTest` with an Android SDK (platform 36; JDK 17, Gradle 8.14 via the wrapper, AGP 8.13, Kotlin 2.4). Unit tests are
 pure Kotlin (JUnit 4) and cover the packet format, hello payload, settings rules, backoff,
 decimator, concealment, tones, the sequence tracker and the voice gate. Anything with a
 transport or a codec needs real phones.
