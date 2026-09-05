@@ -6,12 +6,15 @@ WLAN multicast, Bluetooth Classic RFCOMM and Wi-Fi Aware, with an app-level
 flooding relay so multiple transports and multi-hop topologies work.
 
 ## Stack
-- Kotlin, Android Gradle Plugin 8.5, Kotlin 2.0, minSdk 29, targetSdk 34, JDK 17.
+- Kotlin 2.3, Android Gradle Plugin 8.13 (its R8 supports Kotlin up to 2.3, so Kotlin 2.4 waits for a newer AGP), Gradle 8.14, compileSdk 36, minSdk 29, targetSdk 34, JDK 17.
+  Dependabot keeps AndroidX current; the toolchain itself (AGP, Kotlin, Gradle majors, compileSdk)
+  is moved by hand, since a new AndroidX generation often needs a newer compileSdk (core 1.19
+  wants 37, which has no stable platform yet).
 - No third-party audio libs. 16 kHz mono, 20 ms frames (see `audio/AudioConfig`); on the wire
   as Opus through the platform `MediaCodec` (`audio/opus`, AOSP software codec since API 29)
   or raw PCM16. The AOSP Opus decoder always outputs 48 kHz, hence `audio/Decimator`.
 - Build: `./gradlew assembleDebug` (wrapper is committed; needs an Android SDK with
-  platform 34 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+  platform 36 via `ANDROID_HOME` or `local.properties`). Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
 - Versions come from git in `app/build.gradle.kts`: `versionCode` = commit count, `versionName` =
   `1.<count>`, `BuildConfig.GIT_SHA` on the Status screen. Never edit version numbers by hand.
 - Release pipeline: `.github/workflows/build.yml`. The `build` job (every push/PR; read-only

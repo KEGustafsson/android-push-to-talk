@@ -163,8 +163,9 @@ repeat of the previous one rather than a click. The developer notes in
 
 ## Build it yourself
 
-Open the folder in Android Studio (Koala or newer) and build, or run `./gradlew assembleDebug`
-with an Android SDK (platform 34). Pure-Kotlin unit tests: `./gradlew testDebugUnitTest`.
+Open the folder in Android Studio (Otter or newer, for Android Gradle Plugin 8.13) and build, or
+run `./gradlew assembleDebug` with an Android SDK (platform 36). Pure-Kotlin unit tests:
+`./gradlew testDebugUnitTest`.
 Real testing needs two or more phones; the emulator has neither Bluetooth nor Wi‑Fi Aware.
 
 The version is `1.<number of commits on main>`, set by the build from git; every merge to `main`
