@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The talk disc with its ring, and a mic on it. Everything sits inside the 72 dp safe zone. -->
+<!-- The Signal K plugin's icon (sk-plugin/docs/make_screenshots.py, icon()) redrawn as a vector: a speech
+     waveform of five pills on the talk-disc cyan. Same colours as the plugin's PNG; the disc and the bars
+     are scaled from its 128 px box into the 72 dp the launcher mask shows, inside the 66 dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <!-- ring -->
-    <path android:pathData="M54,20 A34,34 0 1 1 53.99,20 Z" android:strokeColor="#2E3436" android:strokeWidth="5" android:fillColor="#00000000" />
     <!-- disc -->
-    <path android:pathData="M54,25 A29,29 0 1 1 53.99,25 Z" android:fillColor="#4FD8EB" />
-    <!-- mic body -->
-    <path android:pathData="M54,36 a7,7 0 0 1 7,7 v11 a7,7 0 0 1 -14,0 v-11 a7,7 0 0 1 7,-7 z" android:fillColor="#00363D" />
-    <!-- mic cradle -->
-    <path android:pathData="M42,53 a12,12 0 0 0 24,0" android:strokeColor="#00363D" android:strokeWidth="3.5" android:strokeLineCap="round" android:fillColor="#00000000" />
-    <!-- stem and base -->
-    <path android:pathData="M54,65 v6" android:strokeColor="#00363D" android:strokeWidth="3.5" android:strokeLineCap="round" android:fillColor="#00000000" />
-    <path android:pathData="M46,72 h16" android:strokeColor="#00363D" android:strokeWidth="3.5" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M54,25 A29,29 0 1 1 53.99,25 Z" android:fillColor="#4DD0E1" />
+    <!-- waveform: five pills, heights 1:2:3:2:1, round caps -->
+    <path android:pathData="M39.5,50.5 v7" android:strokeColor="#00343A" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M46.75,44.25 v19.5" android:strokeColor="#00343A" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M54,38 v32" android:strokeColor="#00343A" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M61.25,44.25 v19.5" android:strokeColor="#00343A" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M68.5,50.5 v7" android:strokeColor="#00343A" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000" />
 </vector>
