@@ -9,8 +9,6 @@ Bluetooth — all at the same time, and every phone repeats what it hears to the
 reach, so the crew stays connected as long as there is *some* path between them. No server,
 no account, no internet, no subscription. Connecting people, with what is in their pockets.
 
-<img src="docs/images/links.png" alt="One app, every link" width="640">
-
 ## What it does
 
 - **Press to talk**, radio style: hold the big button and the whole crew hears you. Or switch to
@@ -25,6 +23,7 @@ no account, no internet, no subscription. Connecting people, with what is in the
 - **Nothing to set up.** Install the same app on each phone, join the channel, talk.
 
 <img src="docs/images/screens.png" alt="The screens: off the channel, on the channel, talking" width="720">
+<img src="docs/images/links.png" alt="One app, every link" width="640">
 
 ## Install
 
@@ -59,7 +58,12 @@ no account, no internet, no subscription. Connecting people, with what is in the
    shows who else is there, and the notification says what the links are doing.
 4. **Talk.** Hold the big disc. It turns red, *ON AIR*, and everyone hears you. Let go to
    listen. While someone else talks, their name appears in green above the disc.
-5. **Leave.** Tap the switch row again, or *Disconnect* in the notification. Closing the app's
+5. **Volume.** The slider above the disc is the phone's call volume, the level the volume keys
+   would set during a phone call (on the channel they are a talk key instead) and the one a
+   Bluetooth headset's own buttons move. The speaker glyph at its left mutes the others
+   (the row reads *ON CHANNEL · MUTED*, the notification says *muted*); the mute is the app's
+   own and is cleared when you leave the channel.
+6. **Leave.** Tap the switch row again, or *Disconnect* in the notification. Closing the app's
    window does not leave the channel; that is on purpose, so it survives in a pocket.
 
 <img src="docs/images/screen-main.png" alt="Main screen" width="220"> <img src="docs/images/screen-on-air.png" alt="On air" width="220">
@@ -71,7 +75,7 @@ while you are on the channel; pick them under **Settings › Talking**.
 
 | Way | What to do | Notes |
 | --- | --- | --- |
-| **Phone volume keys** | Press once: mic on. Press again: mic off. | Works with the screen off. A held key counts as one press. Volume keys do nothing else while on the channel. |
+| **Phone volume keys** | Press once: mic on. Press again: mic off. | Works with the screen off. A held key counts as one press. Volume keys do nothing else while on the channel: the call volume is the slider on the main screen. |
 | **Headset button** | Click: mic on/off. Hold: talk while held. | Wired headsets always. Many Bluetooth hands-free headsets do *not* pass their button to apps while their microphone link is up (that is how the headset works, not the app); use your voice with those. |
 | **Your voice** | Just speak. | *Voice keys the mic* (Settings › Talking). With a Bluetooth headset: on air within 40 ms of speaking, off 1.5 s after you stop, silent while the headset is muted. On the phone itself it is always on while the phone is at your ear (see below). |
 | **Phone at your ear** | Lift the phone to your ear like a call and speak. | The sound moves to the earpiece, the screen goes dark so your cheek cannot press anything, and your voice keys the mic. Put it down and it is a loudspeaker with a button again. Setting *Phone at the ear* turns this off if the sensor misfires in a pocket or under spray. |
@@ -94,11 +98,18 @@ phone is at your ear. **Settings › Talking › Audio output** can pin it to th
 Half duplex on a loudspeaker works well; **full duplex** (everyone heard at once) is far better
 with a headset, because a loudspeaker feeds back into the microphone.
 
+How loud the others are is the **volume slider** above the disc: the phone's call volume for
+whatever the sound goes to, so the loudspeaker, the earpiece and a headset each keep their own
+level, and a headset's own volume buttons move the slider too. The **speaker glyph** at its left
+mutes the others without touching the level; you still hear your own talk-key tones, and the
+mute is cleared when you leave the channel.
+
 ## The Status screen
 
 Menu ⋮ › **Status** is the place to look when something seems off. It shows every crew member
 with the link they arrive on, how many hops away they are, what they are connected to and when
-they were last heard; this phone's name, mode, codec, where the audio goes and the app version;
+they were last heard; this phone's name, mode, codec, where the audio goes, the call volume and
+the app version;
 the phone's addresses; packet counters (received, sent, relayed, duplicates dropped, concealed,
 hellos); and the last forty status lines with time stamps.
 

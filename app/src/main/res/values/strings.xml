@@ -17,6 +17,12 @@
     <string name="bt_listen_only">Listen only (act as server)</string>
     <string name="channel_off">OFF · TAP TO JOIN</string>
     <string name="channel_on">ON CHANNEL</string>
+    <string name="channel_on_muted">ON CHANNEL · MUTED</string>
+    <string name="notification_muted">muted</string>
+    <string name="volume_mute">Mute</string>
+    <string name="volume_unmute">Unmute</string>
+    <string name="volume_slider">Volume</string>
+    <string name="volume_muted_value">MUTE</string>
     <string name="state_off">OFF</string>
     <string name="status_off_hint">Switch the channel on to see who is aboard</string>
     <string name="status_idle">NOT CONNECTED</string>

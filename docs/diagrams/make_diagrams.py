@@ -128,9 +128,18 @@ def main_screen(p, x, y, state, peers="2", peer_row=True, bt=True):
     n.append(rect(p + "sw", x + 20, row_y, 320, 50))
     n.append(txt(p + "swl", "ON CHANNEL" if on else "OFF · TAP TO JOIN", x + 36, row_y + 8, 200, 34, 13, (CYAN if on else MUTED), spacing=1))
     n += toggle(p + "sw", x + 276, row_y + 11, on)
+    # Playback volume row: mute glyph, slider, number.
+    vol_y = row_y + 64
+    n.append(rect(p + "vr", x + 20, vol_y, 320, 50))
+    n.append(txt(p + "vi", "🔊", x + 30, vol_y + 10, 30, 30, 16, TEXT, align="center", mono=False))
+    n.append(rect(p + "vt", x + 68, vol_y + 22, 210, 6, fill="#3A444A", stroke="#3A444A", arc=50))
+    # Step 9 of 15, the phone's own call-volume scale (the number is the step, not a percentage).
+    n.append(rect(p + "vf", x + 68, vol_y + 22, 126, 6, fill=CYAN, stroke=CYAN, arc=50))
+    n.append((p + "vk", "", x + 184, vol_y + 15, 20, 20, f"ellipse;whiteSpace=wrap;html=1;fillColor={CYAN};strokeColor=none;"))
+    n.append(txt(p + "vv", "9", x + 286, vol_y + 12, 40, 26, 14, TEXT, bold=True, align="right"))
     if state == "air":
-        n.append(txt(p + "tk", "● MATE TALKING", x + 24, row_y + 62, 300, 20, 11, TALKING, spacing=2))
-    cx, cy, r = x + 180, y + 555, 150
+        n.append(txt(p + "tk", "● MATE TALKING", x + 24, vol_y + 58, 300, 20, 11, TALKING, spacing=2))
+    cx, cy, r = x + 180, y + 585, 135
     if state == "air":
         n.append((p + "d", "", cx - r, cy - r, 2 * r, 2 * r, f"ellipse;whiteSpace=wrap;html=1;fillColor={ON_AIR};strokeColor={ON_AIR_RING};strokeWidth=10;"))
         n.append(txt(p + "d1", "ON AIR", cx - r, cy - 40, 2 * r, 50, 40, "#FFDAD6", bold=True, align="center", mono=False))
@@ -143,7 +152,7 @@ def main_screen(p, x, y, state, peers="2", peer_row=True, bt=True):
 
 
 def status_screen(p, x, y):
-    n = [frame(p + "f", x, y)]
+    n = [frame(p + "f", x, y, h=790)]
     n.append(rect(p + "bar", x + 2, y + 2, 356, 56, fill="#161C21", stroke="#161C21", arc=0))
     n.append(txt(p + "back", "←", x + 18, y + 12, 30, 36, 20, TEXT, align="center"))
     n.append(txt(p + "ttl", "Status", x + 56, y + 12, 200, 36, 20, TEXT, mono=False))
@@ -163,22 +172,22 @@ def status_screen(p, x, y):
     n.append(txt(p + "n2s", "AWARE · 1 HOP", x + 216, y + 234, 110, 22, 11, MUTED, align="right", spacing=1))
     n.append(txt(p + "n2d", "on BT · id cfe7198c · heard just now", x + 56, y + 256, 280, 18, 10, MUTED, mono=False))
     # this phone card
-    n.append(rect(p + "c2", x + 20, y + 312, 320, 236, arc=10))
+    n.append(rect(p + "c2", x + 20, y + 312, 320, 263, arc=10))
     n.append(txt(p + "c2t", "THIS PHONE", x + 36, y + 322, 140, 20, 11, CYAN, spacing=2))
     n.append(txt(p + "c2r", "428deaea", x + 220, y + 322, 106, 20, 11, MUTED, align="right", spacing=2))
     rows = [("MY NAME", "Deckhand"), ("MODE", "Half duplex"), ("RELAY", "On"), ("CODEC", "Opus"),
-            ("AUDIO", "Headset · Jabra"), ("HOP LIMIT", "4"), ("VERSION", "1.62 · 5f3e0ee")]
+            ("AUDIO", "Headset · Jabra"), ("CALL VOLUME", "9 / 15"), ("HOP LIMIT", "4"), ("VERSION", "1.125 · ac05fcf")]
     for i, (k, v) in enumerate(rows):
         ry = y + 350 + i * 27
         n.append(txt(p + f"k{i}", k, x + 36, ry, 120, 22, 11, MUTED, spacing=1))
         n.append(txt(p + f"v{i}", v, x + 150, ry, 176, 22, 13, TEXT, align="right", mono=False))
     # network card
-    n.append(rect(p + "c3", x + 20, y + 564, 320, 176, arc=10))
-    n.append(txt(p + "c3t", "NETWORK", x + 36, y + 574, 140, 20, 11, CYAN, spacing=2))
-    n.append(txt(p + "c3r", "BT + AWARE", x + 200, y + 574, 126, 20, 11, MUTED, align="right", spacing=2))
+    n.append(rect(p + "c3", x + 20, y + 591, 320, 176, arc=10))
+    n.append(txt(p + "c3t", "NETWORK", x + 36, y + 601, 140, 20, 11, CYAN, spacing=2))
+    n.append(txt(p + "c3r", "BT + AWARE", x + 200, y + 601, 126, 20, 11, MUTED, align="right", spacing=2))
     rows = [("WLAN0", "192.168.0.35/24"), ("AWARE_DATA0", "fe80::cb:b7ff:fe6c:de48"), ("MULTICAST", "239.255.42.1:47474"), ("BLUETOOTH", "Mate's phone")]
     for i, (k, v) in enumerate(rows):
-        ry = y + 602 + i * 30
+        ry = y + 629 + i * 30
         n.append(txt(p + f"nk{i}", k, x + 36, ry, 120, 22, 11, MUTED, spacing=1))
         n.append(txt(p + f"nv{i}", v, x + 130, ry, 196, 22, 12, TEXT, align="right", mono=False))
     return n
@@ -233,7 +242,7 @@ diagram("screens", "The screens", nodes=(
 
 diagram("screen-main", "Main screen", nodes=main_screen("a", 20, 20, "on"), edges=[], width=400, height=800)
 diagram("screen-on-air", "On air", nodes=main_screen("a", 20, 20, "air"), edges=[], width=400, height=800)
-diagram("screen-status", "Status screen", nodes=status_screen("s", 20, 20), edges=[], width=400, height=800)
+diagram("screen-status", "Status screen", nodes=status_screen("s", 20, 20), edges=[], width=400, height=830)
 diagram("screen-settings", "Settings screen", nodes=settings_screen("s", 20, 20), edges=[], width=400, height=980)
 
 

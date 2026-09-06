@@ -113,6 +113,9 @@ class StatusActivity : AppCompatActivity() {
                 Prefs.ROUTE_EARPIECE -> "Earpiece"
                 else -> "Headset or speaker"
             }))
+            val cv = fi.crewradio.audio.CallVolume(this)
+            val stream = cv.stream(e?.bluetoothHeadsetNow == true)
+            rows.addView(kv("CALL VOLUME", "${cv.get(stream)} / ${cv.max(stream)}" + (if (on && e?.muted == true) " · muted" else "")))
             rows.addView(kv("HOP LIMIT", prefs.hops.toString()))
             rows.addView(kv("VERSION", "${BuildConfig.VERSION_NAME} · ${BuildConfig.GIT_SHA}"))
             val peak = e?.micPeakNow ?: -1

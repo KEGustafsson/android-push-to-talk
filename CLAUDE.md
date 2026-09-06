@@ -87,6 +87,15 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   audio: `SeqTracker` (pure, wrap-aware, tested) admits each frame and reports the gap, the engine
   reserves that many slots in the mixer atomically with the admission, and the mixer fills them,
   and any queue that runs dry mid-talk, with the last frame fading over at most three slots.
+- Volume row (main screen, above the disc: mute glyph, slider, step number). The slider is the
+  phone's call volume through `audio/CallVolume`: the voice-call stream (playback is
+  `USAGE_VOICE_COMMUNICATION`), or the hidden SCO stream 6 while a Bluetooth headset carries the
+  audio on API < 34, in the stream's own steps (min 1, so the stream cannot mute); it follows
+  `android.media.VOLUME_CHANGED_ACTION` so a headset button moves it too. On channel the volume
+  keys are a talk key, which is why the slider exists. The mute is the app's own: `PttEngine.muted`
+  sets `Mixer.gain` to 0 on the summed speech before the cue tones are added (a muted phone still
+  hears its key beeps); session state, cleared by `disconnect()`, shown as "ON CHANNEL · MUTED" on
+  the channel row and "muted" in the notification title.
 - Audio routing: `audio/AudioRoute` owns `AudioManager.mode` for the session and picks the
   communication device: Bluetooth SCO headset, else wired/USB headset, else speakerphone
   (`setCommunicationDevice` on API 31+, `startBluetoothSco`/`isSpeakerphoneOn` below). It

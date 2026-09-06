@@ -292,6 +292,11 @@ class PttService : Service() {
 
     // ---- foreground notification -------------------------------------------------
 
+    /** Re-posts the notification after something it shows (the mute) changed outside the engine's own callbacks. */
+    fun refreshNotification() {
+        if (engine.isConnected) showForeground(lastStatus)
+    }
+
     /** (Re)posts the foreground notification. Re-calling startForeground is the documented way to update it. */
     private fun showForeground(text: String) {
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(text), foregroundTypes())
@@ -319,7 +324,9 @@ class PttService : Service() {
             flags
         )
         val online = lastRoster.size
-        val title = getString(R.string.notification_title) + if (online > 0) " · $online online" else ""
+        val title = getString(R.string.notification_title) +
+            (if (online > 0) " · $online online" else "") +
+            (if (engine.muted) " · " + getString(R.string.notification_muted) else "")
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_ptt)
             .setContentTitle(title)

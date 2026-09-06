@@ -346,6 +346,17 @@ class PttEngine(
     /** Where the voice is going right now, for the Status screen. */
     val audioRouteNow: String get() = route.current
     private val mixer = Mixer()
+
+    /**
+     * The user's mute: received speech is silenced in the mixer (a gain of 0), the cue tones stay,
+     * and no system stream is touched. Session state: cleared when the phone leaves the channel.
+     * The level itself is the phone's call volume, set by the main screen's slider ([CallVolume]).
+     */
+    @Volatile var muted = false
+        set(v) { field = v; mixer.gain = if (v) 0f else 1f }
+
+    /** True while a Bluetooth headset carries the audio; the slider picks its stream by it. */
+    val bluetoothHeadsetNow: Boolean get() = route.bluetoothHeadset
     private val transports = CopyOnWriteArrayList<Transport>()
     private var capture: AudioCapture? = null
     @Volatile private var encoder: OpusEncoder? = null
@@ -471,6 +482,7 @@ class PttEngine(
         CallBridge.listener = null
         mixer.muted = false
         held = false
+        muted = false
     }
 
     fun stats(): Stats = counters.snapshot(mixer.concealedFrames.get())
