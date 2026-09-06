@@ -21,6 +21,9 @@ First release.
   they clear; include and exclude globs; optional fan-out to the boat's own speakers.
 - The roster in Signal K: `communication.crewradio.online`, `.nodes`, `.talking`.
 - `tools/cli.js` for testing from any machine on the boat network without Signal K.
+- Delivery: frames go out 100 ms ahead of real time, and each one is also sent unicast to every
+  phone heard from, because access points drop a few percent of multicast even in the same
+  cabin; found with the phones' concealed-frame counter and the CLI.
 
 ### Security
 

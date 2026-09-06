@@ -4,7 +4,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
-const { ChannelNode, FRAME_BYTES } = require("../lib/node");
+const { ChannelNode, FRAME_BYTES, LEAD_MS } = require("../lib/node");
 const { ChannelCrypto } = require("../lib/crypto");
 const P = require("../lib/packet");
 
@@ -79,7 +79,7 @@ test("speaking sends 640-byte PCM frames at 20 ms, pads the last one, and the li
   const frames = sent.map((p) => P.parseHeader(p)).filter((h) => h && h.codec === P.Codec.PCM);
   assert.equal(frames.length, 5);
   assert.deepEqual(frames.map((h) => h.seq), [0, 1, 2, 3, 4]);
-  assert.ok(elapsed >= 80 && elapsed < 400, `paced: ${elapsed} ms`);
+  assert.ok(elapsed >= 100 - LEAD_MS - 5 && elapsed < 400, `paced with a lead: ${elapsed} ms`);   // 5 frames = 100 ms, minus the lead
   const lastPlain = crypto.open(P.aadOf(sent.at(-1)), sent.at(-1).subarray(P.HEADER));
   assert.equal(lastPlain.length, FRAME_BYTES);
   assert.equal(lastPlain[99], 7);
@@ -108,6 +108,26 @@ test("waitForSilence: at once when nobody ever talked, after the gap when someon
   await tick(60);
   clock = 1650; // 250 ms since the audio: still inside the gap, but past the deadline
   assert.equal(await late, false);
+  a.stop();
+});
+
+test("a node's address is learnt from its packets and every packet out carries the unicast list", async () => {
+  const link = new EventEmitter();
+  const sent = [];
+  link.send = (buf, unicast) => { sent.push(unicast ?? []); return true; };
+  const a = new ChannelNode({ name: "Boat", crypto, link, heartbeatMs: 100000 });
+  a.start();
+  assert.deepEqual(sent.at(-1), [], "nobody known yet: multicast and broadcast only");
+  const hello = (id, ttl = 4) => { const h = P.encodeHeader({ senderId: id, seq: 0, codec: P.Codec.HELLO, ttl }); return Buffer.concat([h, crypto.seal(P.aadOf(h), P.encodeHello({ name: "n" + id, transports: 1, ttl }))]); };
+  link.emit("packet", hello(1), { address: "192.168.0.30" });
+  link.emit("packet", hello(2), { address: "192.168.0.35" });
+  link.emit("packet", hello(3), { address: "192.168.0.35" });   // two nodes behind one address: one copy
+  const relayed = hello(4); relayed[4] = 3;                       // ttl decremented by a relay: not its own address
+  link.emit("packet", relayed, { address: "192.168.0.99" });
+  a.tick();
+  assert.deepEqual(sent.at(-1).sort(), ["192.168.0.30", "192.168.0.35"]);
+  await a.speak(Buffer.alloc(FRAME_BYTES));
+  assert.deepEqual(sent.at(-1).sort(), ["192.168.0.30", "192.168.0.35"], "audio frames too");
   a.stop();
 });
 

@@ -99,8 +99,14 @@ and restart the server. Then, in the Signal K admin UI:
   crew member who is talking misses the announcement. The plugin waits for a gap first; a
   future app change will let urgent announcements through regardless.
 - **Two nodes named alike** are fine; the phones list nodes by id.
-- **Bandwidth.** Speech goes out as PCM, 34 kB/s while talking, nothing otherwise but one small
-  hello a second. Fine on LAN and WLAN; over a Bluetooth relay hop it is the same as a phone talking in PCM.
+- **Bandwidth.** Speech goes out as PCM, 34 kB/s per copy while talking, nothing otherwise but one
+  small hello a second; over a Bluetooth relay hop it is the same as a phone talking in PCM.
+- **Every phone gets its own copy.** Besides multicast and broadcast, each frame is sent unicast
+  to every phone the plugin has heard from directly (a relayed hello carries the relay's address, so it does not count). Access points send multicast at their lowest
+  rate without acknowledgement, and phones lose a few percent of it even in the same cabin, which
+  was audible as gaps; unicast is retried and rate-adapted, and the phones drop the copies they
+  get twice. Frames also leave 100 ms ahead of time so a late timer tick on the server never
+  makes a phone's queue run dry.
 - **Security.** The channel key sits in the server's plugin config like any other secret there.
   Anyone who can read the Signal K configuration can read it; treat the server as a crew member.
 

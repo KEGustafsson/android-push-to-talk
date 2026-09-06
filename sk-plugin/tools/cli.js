@@ -113,13 +113,15 @@ async function join() {
   const link = new LanLink({ group: args.group || "239.255.42.1", port: Number(args.udp) || 47474, iface: args.iface || "auto" });
   const where = await link.open();
   log(`WLAN ${where.iface} ${where.address} broadcast ${where.broadcast}`);
-  if (args.unicast) {   // debugging on a network that filters multicast and broadcast: also send straight to these hosts
+  if (args.unicast) {   // extra unicast targets besides the nodes learnt from hellos (a host that filters multicast)
     const hosts = String(args.unicast).split(",");
     const send = link.send.bind(link);
-    link.send = (buf) => { for (const h of hosts) link.sock?.send(buf, link.port, h, () => {}); return send(buf); };
+    link.send = (buf, unicast = []) => send(buf, [...new Set([...unicast, ...hosts])]);
     log(`also unicasting to ${hosts.join(", ")}`);
   }
-  const node = new ChannelNode({ name: args.name || "Laptop", crypto: ChannelCrypto.forChannelKey(args.key), link, ttl: Number(args.hops) || 4 });
+  const node = new ChannelNode({ name: args.name || "Laptop", crypto: ChannelCrypto.forChannelKey(args.key), link, ttl: Number(args.hops) || 4,
+    leadMs: args.lead !== undefined ? Number(args.lead) : undefined, repeatMs: args.repeat !== undefined ? Number(args.repeat) : undefined });
+  if (args.lead !== undefined || args.repeat !== undefined) log(`pacing: lead ${node.leadMs} ms, repeat ${node.repeatMs ? node.repeatMs + " ms" : "off"}`);
   node.start();
   return { node, link };
 }

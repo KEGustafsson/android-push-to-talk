@@ -70,12 +70,19 @@ class LanLink extends EventEmitter {
     });
   }
 
-  /** Sends to the group and to the subnet broadcast; transient failures are ignored, as in the app. */
-  send(buf) {
+  /**
+   * Sends to the group, to the subnet broadcast and, when given, to each address in `unicast`:
+   * an access point sends multicast and broadcast at its lowest rate without acknowledgement,
+   * so phones lose a few percent of them even in the same cabin, whereas unicast is retried
+   * and rate-adapted. The phones drop the copies they get twice by (sender, seq). Transient
+   * failures are ignored, as in the app.
+   */
+  send(buf, unicast = []) {
     const s = this.sock;
     if (!s) return false;
     s.send(buf, this.port, this.group, () => {});
     if (this.broadcast) s.send(buf, this.port, this.broadcast, () => {});
+    for (const a of unicast) s.send(buf, this.port, a, () => {});
     return true;
   }
 

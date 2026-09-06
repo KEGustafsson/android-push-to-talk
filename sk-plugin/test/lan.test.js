@@ -44,6 +44,18 @@ test("opening a link on the machine's interface binds, joins the group and can s
   assert.equal(link.send(Buffer.from("x")), false, "closed links do not send");
 });
 
+test("send() goes to the group, the broadcast address and each unicast target", () => {
+  const link = new LanLink({ group: "239.255.42.1", port: 47474 });
+  const sent = [];
+  link.sock = { send: (buf, port, addr) => sent.push(`${addr}:${port}`) };
+  link.broadcast = "192.168.0.255";
+  assert.equal(link.send(Buffer.from("x"), ["192.168.0.30", "192.168.0.35"]), true);
+  assert.deepEqual(sent, ["239.255.42.1:47474", "192.168.0.255:47474", "192.168.0.30:47474", "192.168.0.35:47474"]);
+  sent.length = 0;
+  link.send(Buffer.from("x"));
+  assert.deepEqual(sent, ["239.255.42.1:47474", "192.168.0.255:47474"]);
+});
+
 test("a bad group address rejects open() instead of throwing later", async (t) => {
   const pick = chooseInterface(null);
   if (!pick) { t.skip("no IPv4 interface on this machine"); return; }

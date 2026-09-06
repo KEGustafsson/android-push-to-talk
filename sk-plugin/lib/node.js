@@ -17,6 +17,7 @@ const P = require("./packet");
 
 const FRAME_BYTES = 640; // 16 kHz * 20 ms * 2 bytes
 const FRAME_MS = 20;
+const LEAD_MS = 100;       // how far ahead of real time frames may go out (the phones buffer up to 200 ms)
 const SEEN_CAPACITY = 4096;
 
 class ChannelNode extends EventEmitter {
@@ -40,18 +41,20 @@ class ChannelNode extends EventEmitter {
     this.heartbeatMs = opts.heartbeatMs ?? 1000;
     this.silenceMs = opts.silenceMs ?? 4000;
     this.talkingMs = opts.talkingMs ?? 500;
+    this.leadMs = opts.leadMs ?? LEAD_MS;       // how far ahead of real time frames go out
+    this.repeatMs = opts.repeatMs ?? 0;         // > 0: send every audio packet a second time this much later (heals a lost copy)
     this.now = opts.now ?? Date.now;
     this.senderId = randomSenderId();
     this.audioSeq = 0;
     this.helloSeq = 0;
     this.seen = new Map(); // key -> true, insertion ordered, bounded
-    this.nodes = new Map(); // senderId -> {name, transports, hops, lastSeen, lastAudio}
+    this.nodes = new Map(); // senderId -> {name, transports, hops, lastSeen, lastAudio, address}
     this.timer = null;
     this.speaking = null; // {cancel, done} of the announcement going out right now
     this.chain = Promise.resolve(); // announcements go out one after another, in call order
     this.lastRosterKey = "";
     this.stats = { rx: 0, rejected: 0, tx: 0 };
-    this.onPacket = (buf) => this.receive(buf);
+    this.onPacket = (buf, rinfo) => this.receive(buf, rinfo);
   }
 
   start() {
@@ -147,10 +150,24 @@ class ChannelNode extends EventEmitter {
     this.speaking = { cancel: () => (cancelled = true), done };
     this.emit("speaking", true);
     try {
+      // Frames go out LEAD_MS ahead of real time. Node's timers are coarse on some hosts
+      // (Windows: 15.6 ms ticks, so gaps of 15 or 31 ms instead of 20), and a frame that
+      // arrives late makes the phones' mixer run dry and conceal, which sounds like warble;
+      // early frames only sit in their jitter queue. The schedule is drift-corrected, so the
+      // cushion never shrinks over a long announcement.
       const t0 = this.now();
       for (let i = 0; i < frames.length && !cancelled; i++) {
-        this.broadcast(P.Codec.PCM, frames[i]);
-        const due = t0 + (i + 1) * FRAME_MS;
+        const packet = this.broadcast(P.Codec.PCM, frames[i]);
+        if (this.repeatMs > 0) {
+          // The same packet again a little later: a copy lost on the air is replaced before its
+          // playback slot, and the phones drop the second copy by (sender, seq) when both arrive.
+          const t = setTimeout(() => this.link.send(packet, this.unicastTargets()), this.repeatMs);
+          if (t.unref) t.unref();
+        }
+        // A datagram leaves only on the next turn of the event loop (the address lookup completes
+        // on a tick), so yield before any blocking wait or the whole announcement goes out in one burst.
+        await nextTurn();
+        const due = t0 + (i + 1) * FRAME_MS - this.leadMs;
         const wait = due - this.now();
         if (wait > 0) await sleep(wait);
       }
@@ -172,11 +189,19 @@ class ChannelNode extends EventEmitter {
     this.markSeen(this.senderId, seq, codec);
     const packet = Buffer.concat([header, this.crypto.seal(P.aadOf(header), payload)]);
     this.stats.tx++;
-    this.link.send(packet);
+    this.link.send(packet, this.unicastTargets());
+    return packet;
+  }
+
+  /** The addresses the known nodes were last heard from, for unicast copies (see lan.js). */
+  unicastTargets() {
+    const out = new Set();
+    for (const n of this.nodes.values()) if (n.address) out.add(n.address);
+    return [...out];
   }
 
   /** The receive path: parse, drop our own and duplicates, authenticate, then roster or talking. */
-  receive(buf) {
+  receive(buf, rinfo) {
     const h = P.parseHeader(buf);
     if (!h) { this.stats.rejected++; return; }
     if (h.senderId === this.senderId) return;
@@ -194,6 +219,9 @@ class ChannelNode extends EventEmitter {
       this.nodes.set(h.senderId, n);
     }
     n.lastSeen = now;
+    // Where a unicast copy reaches this node: only from packets that came straight from it. A
+    // relayed packet arrives from the relaying node's address, which would get the copies instead.
+    if (rinfo && rinfo.address && h.hops - h.ttl === 0) n.address = rinfo.address;
     if (h.codec === P.Codec.HELLO) {
       const hello = P.decodeHello(plain);
       if (hello) {
@@ -244,5 +272,6 @@ function randomSenderId() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const nextTurn = () => new Promise((r) => setImmediate(r));
 
-module.exports = { ChannelNode, FRAME_BYTES, FRAME_MS };
+module.exports = { ChannelNode, FRAME_BYTES, FRAME_MS, LEAD_MS };
