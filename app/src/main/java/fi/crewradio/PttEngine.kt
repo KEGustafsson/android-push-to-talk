@@ -352,7 +352,7 @@ class PttEngine(
      * and no system stream is touched. Session state: cleared when the phone leaves the channel.
      * The level itself is the phone's call volume, set by the main screen's slider ([CallVolume]).
      */
-    var muted = false
+    @Volatile var muted = false
         set(v) { field = v; mixer.gain = if (v) 0f else 1f }
 
     /** True while a Bluetooth headset carries the audio; the slider picks its stream by it. */

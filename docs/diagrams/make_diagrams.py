@@ -133,9 +133,10 @@ def main_screen(p, x, y, state, peers="2", peer_row=True, bt=True):
     n.append(rect(p + "vr", x + 20, vol_y, 320, 50))
     n.append(txt(p + "vi", "🔊", x + 30, vol_y + 10, 30, 30, 16, TEXT, align="center", mono=False))
     n.append(rect(p + "vt", x + 68, vol_y + 22, 210, 6, fill="#3A444A", stroke="#3A444A", arc=50))
-    n.append(rect(p + "vf", x + 68, vol_y + 22, 147, 6, fill=CYAN, stroke=CYAN, arc=50))
-    n.append((p + "vk", "", x + 205, vol_y + 15, 20, 20, f"ellipse;whiteSpace=wrap;html=1;fillColor={CYAN};strokeColor=none;"))
-    n.append(txt(p + "vv", "70", x + 286, vol_y + 12, 40, 26, 14, TEXT, bold=True, align="right"))
+    # Step 9 of 15, the phone's own call-volume scale (the number is the step, not a percentage).
+    n.append(rect(p + "vf", x + 68, vol_y + 22, 126, 6, fill=CYAN, stroke=CYAN, arc=50))
+    n.append((p + "vk", "", x + 184, vol_y + 15, 20, 20, f"ellipse;whiteSpace=wrap;html=1;fillColor={CYAN};strokeColor=none;"))
+    n.append(txt(p + "vv", "9", x + 286, vol_y + 12, 40, 26, 14, TEXT, bold=True, align="right"))
     if state == "air":
         n.append(txt(p + "tk", "● MATE TALKING", x + 24, vol_y + 58, 300, 20, 11, TALKING, spacing=2))
     cx, cy, r = x + 180, y + 585, 135
