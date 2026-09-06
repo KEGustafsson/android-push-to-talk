@@ -391,6 +391,13 @@ class PttEngine(
         synchronized(cache) { return cache.put(key, true) == null }
     }
 
+    /** True if this (sender, seq) is already in the seen-cache; a look, nothing is recorded. */
+    private fun isSeen(senderId: Int, seq: Int, codec: Packet.Codec): Boolean {
+        val key = (senderId.toLong() shl 32) or (seq.toLong() and 0xFFFF_FFFFL)
+        val cache = if (codec == Packet.Codec.HELLO) seenHellos else seen
+        synchronized(cache) { return cache.containsKey(key) }
+    }
+
     /** Starts playback and the given transports; any transport that fails to start is reported and dropped. */
     fun connect(list: List<Transport>) {
         disconnect()
@@ -537,9 +544,13 @@ class PttEngine(
         // Drop duplicates before charging the sender: every frame arrives twice on WLAN (multicast
         // and broadcast) and again over every other link, so charging each copy would spend a
         // 75/s budget on 100+ copies/s and, once the burst is gone, refuse real frames too. Only
-        // authenticated packets get here, so a forgery cannot occupy a (sender, seq) slot.
-        if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
+        // authenticated packets get here, so a forgery cannot occupy a (sender, seq) slot. The
+        // cache is looked at first and written only for a packet within the budget, so a sender
+        // over its budget cannot churn the shared cache either; a copy that slips in between on
+        // another transport's thread is caught by the write and counted as the duplicate it is.
+        if (isSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }       // duplicate via another path
         if (!rateLimiter.allowSender(h.senderId, now)) { c.rejected.incrementAndGet(); return }
+        if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // lost the race to its twin
         c.rxPackets.incrementAndGet()
         c.rxBytes.addAndGet(p.size.toLong())
 
