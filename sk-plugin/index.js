@@ -207,8 +207,18 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
     return { ok: true, queued: position, priority, seconds: Math.round(pcm.length / 32) / 1000 };
   }
 
+  /** How long an announcement waits for the network link to come back before it is dropped. */
+  const LINK_WAIT_MS = 60_000;
+
   async function playOnChannel(pcm, cancelled) {
-    if (!node) throw new Error("not on the channel (network link down)");
+    // The link reconnects on its own (1 s doubling to 15 s); an announcement made while it is
+    // down waits for it at the head of the queue instead of being thrown away.
+    const t0 = Date.now();
+    while (!node) {
+      if (!running || cancelled()) return;
+      if (Date.now() - t0 > LINK_WAIT_MS) throw new Error("not on the channel (network link down)");
+      await new Promise((r) => setTimeout(r, 100));
+    }
     if (cfg.waitForSilenceMs > 0) await node.waitForSilence(300, cfg.waitForSilenceMs);
     if (cancelled()) return;
     await node.speak(pcm);
@@ -240,7 +250,8 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
     const talking = r.filter((n) => n.talking).map((n) => n.name);
     if (talking.length) parts.push(`talking: ${talking.join(", ")}`);
     if (node?.speaking) parts.push("announcing");
-    if (queue?.size) parts.push(`${queue.size} waiting`);
+    const waiting = (queue?.size ?? 0) + (queue?.current && !node?.speaking ? 1 : 0);   // held for the link, or for a gap in talk
+    if (waiting) parts.push(`${waiting} waiting`);
     parts.push(`voice ${cfg?.voice ?? "-"}`);
     const line = parts.join(" · ");
     if (line !== lastStatus) { lastStatus = line; app.setPluginStatus(line); }

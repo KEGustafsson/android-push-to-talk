@@ -231,6 +231,12 @@ test("a network link that cannot open is reported and retried; say() still queue
     assert.match(app.status.at(-1), /network link down/);
     const r = await app.props["signalk-crewradio.api"].say({ text: "hello" });
     assert.equal(r.ok, true, "queued; it plays once the link is back");
+    assert.match(app.status.at(-1), /network link down · 1 waiting/, "the announcement is held at the head of the queue");
+    FakeLink.failOpen = false;                       // the retry (1 s backoff) now succeeds
+    const audioOn = (link) => link.sent.filter((b) => P.parseHeader(b).codec === P.Codec.PCM);
+    await until(() => FakeLink.last && !FakeLink.last.closed && audioOn(FakeLink.last).length > 0, 5000);
+    const audio = audioOn(FakeLink.last);
+    assert.ok(audio.length >= 5, `the queued announcement went out as PCM frames after the reconnect (${audio.length})`);
   } finally {
     FakeLink.failOpen = false;
     p.stop();
