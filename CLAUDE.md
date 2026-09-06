@@ -157,7 +157,10 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   plugin installed (recipe: `sk-plugin/docs/capture_admin_ui.md`; a headless Edge driven over the
   DevTools protocol, since its `--screenshot` flag is unreliable on Windows); the two illustrations
   and the icon are drawn by `docs/make_screenshots.py` (draw.io export, like the app's docs).
-  Never pass off a drawing as a screenshot of the admin UI. `lib/packet.js`, `lib/crypto.js` and
+  Never pass off a drawing as a screenshot of the admin UI. The icon and the pictures live under
+  `public/` (declared as `./icon.png`, `./screenshots/*.png`): with a `public/` directory the
+  server mounts only that at `/signalk-crewradio/`, and the App Store probe looks there first, so
+  anything under `docs/` would be unreachable and the Webapps card would show a monogram. `lib/packet.js`, `lib/crypto.js` and
   `lib/node.js` mirror `Packet.kt`, `ChannelCrypto.kt`, `Hello.kt` and the engine's roster rules
   byte for byte; `sk-plugin/test/vector.json` and the app's `CrossLanguageVectorTest` check the
   same packet, so change both when the wire changes.

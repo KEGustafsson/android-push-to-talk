@@ -5,9 +5,9 @@ Signal K server with the plugin installed, taken with docs/capture_admin_ui.md's
 
     python sk-plugin/docs/make_screenshots.py
     for n in announcement how-it-fits; do
-      "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 1 -b 0 -o sk-plugin/docs/screenshots/$n.png sk-plugin/docs/diagrams/$n.drawio
+      "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 1 -b 0 -o sk-plugin/public/screenshots/$n.png sk-plugin/docs/diagrams/$n.drawio
     done
-    "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 1 -b 0 -o sk-plugin/docs/icon.png sk-plugin/docs/diagrams/icon.drawio
+    "C:/Program Files/draw.io/draw.io.exe" -x -f png -s 1 -b 0 -o sk-plugin/public/icon.png sk-plugin/docs/diagrams/icon.drawio
 
 Each screenshot is 1280 x 800 (the App Store's recommended 16:10), the icon 128 x 128.
 """

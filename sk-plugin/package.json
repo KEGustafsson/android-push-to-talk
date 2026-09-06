@@ -28,13 +28,13 @@
   },
   "signalk": {
     "displayName": "Crew Radio",
-    "appIcon": "./docs/icon.png",
+    "appIcon": "./icon.png",
     "screenshots": [
-      "./docs/screenshots/plugin-config.png",
-      "./docs/screenshots/webapp.png",
-      "./docs/screenshots/announcement.png",
-      "./docs/screenshots/data-browser.png",
-      "./docs/screenshots/how-it-fits.png"
+      "./screenshots/plugin-config.png",
+      "./screenshots/webapp.png",
+      "./screenshots/announcement.png",
+      "./screenshots/data-browser.png",
+      "./screenshots/how-it-fits.png"
     ]
   },
   "files": [

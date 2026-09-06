@@ -1,6 +1,6 @@
 # Capturing the admin UI pictures
 
-`plugin-config.png`, `data-browser.png` and `webapp.png` are real screenshots of a Signal K server with the
+`plugin-config.png`, `data-browser.png` and `webapp.png` (in `public/screenshots/`, where the server's webapp mount and the App Store can reach them) are real screenshots of a Signal K server with the
 plugin installed, not drawings. To take them again after a change, on a machine with Node 24:
 
 1. A scratch server, apart from any real installation:
