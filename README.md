@@ -9,8 +9,6 @@ Bluetooth — all at the same time, and every phone repeats what it hears to the
 reach, so the crew stays connected as long as there is *some* path between them. No server,
 no account, no internet, no subscription. Connecting people, with what is in their pockets.
 
-<img src="docs/images/links.png" alt="One app, every link" width="640">
-
 ## What it does
 
 - **Press to talk**, radio style: hold the big button and the whole crew hears you. Or switch to
@@ -25,6 +23,7 @@ no account, no internet, no subscription. Connecting people, with what is in the
 - **Nothing to set up.** Install the same app on each phone, join the channel, talk.
 
 <img src="docs/images/screens.png" alt="The screens: off the channel, on the channel, talking" width="720">
+<img src="docs/images/links.png" alt="One app, every link" width="640">
 
 ## Install
 
