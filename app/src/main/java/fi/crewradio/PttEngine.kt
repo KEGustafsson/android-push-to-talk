@@ -228,6 +228,11 @@ class PttEngine(
                     gate.tune(phoneMic)
                     if (phoneMic) watchProximity(true)
                     preroll.clear()
+                    // A talk in progress on the engine's own capture (a setting or the route changed
+                    // mid-press) hands over to the monitor, which feeds sendFrame while talking: two
+                    // captures would send every frame twice and fight over the mic. Its callback takes
+                    // no lock, so stopping it here is safe.
+                    capture?.let { it.stop(); capture = null }
                     lateinit var m: AudioCapture
                     m = AudioCapture { pcm -> synchronized(monitorLock) { if (monitor === m) voiceFrame(pcm) } }
                     monitor = m                                   // published first: the worker may call back before start() returns
