@@ -191,7 +191,7 @@ def icon():
     n = [rect("bg", 0, 0, 128, 128, fill=BG, stroke="none", arc=22)]
     n.append(ellipse("disc", 12, 12, 104, 104, CYAN, "none"))
     for i, h in enumerate([22, 44, 66, 44, 22]):
-        x = 36 + i * 13
+        x = 33.5 + i * 13  # five 9 px bars at a 13 px pitch, 61 px in all, centred on the disc
         n.append(rect(f"b{i}", x, 64 - h // 2, 9, h, fill="#00343A", stroke="none", arc=50))
     diagram("icon", n, width=128, height=128, background=BG)
 
