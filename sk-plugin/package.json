@@ -19,8 +19,8 @@
     "signalk-category-notifications",
     "crew-radio",
     "push-to-talk",
-    "wyoming",
-    "signalk-wyoming"
+    "text-to-speech",
+    "intercom"
   ],
   "engines": {
     "node": ">=24"
@@ -33,10 +33,6 @@
       "./docs/screenshots/announcement.png",
       "./docs/screenshots/data-browser.png",
       "./docs/screenshots/how-it-fits.png"
-    ],
-    "recommends": [
-      "signalk-wyoming",
-      "signalk-piper"
     ]
   },
   "files": [
@@ -51,5 +47,8 @@
   "scripts": {
     "test": "node --test",
     "coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"tools/**\" --test-coverage-lines=80 --test-coverage-branches=75 --test-coverage-functions=80"
+  },
+  "dependencies": {
+    "@echogarden/flite-wasi": "0.1.1"
   }
 }

@@ -3,22 +3,21 @@
 "use strict";
 
 /**
- * Development tool: the plugin's channel node and satellite from a shell, no Signal K needed.
+ * Development tool: the plugin's pieces from a shell, no Signal K needed.
  *
- *   node tools/cli.js roster  --key KEY [--name NAME] [--seconds 10]        join, print the roster, leave
- *   node tools/cli.js say     --key KEY --wav FILE [--name NAME] [--no-chime] speak a WAV on the channel
- *   node tools/cli.js serve   --key KEY [--port 10701] [--bind 127.0.0.1] [--allow HOST,CIDR]   join and run the Wyoming satellite
- *   node tools/cli.js send    --to HOST:PORT --wav FILE                       act as the orchestrator: stream a WAV to a satellite
+ *   node tools/cli.js roster --key KEY [--name NAME] [--seconds 10]            join, print the roster, leave
+ *   node tools/cli.js say    --key KEY --text "..." [--voice slt] [--rate 1]    speak a text on the channel
+ *   node tools/cli.js say    --key KEY --wav FILE                                speak a WAV (PCM16, any rate) on the channel
+ *   node tools/cli.js tts    --text "..." --out FILE.wav [--voice slt] [--rate 1] speech to a WAV file, no network
  *
- * Common: --group 239.255.42.1 --udp 47474 --iface auto --hops 4 [--unicast HOST,HOST]. WAV: PCM16, any rate, mono or stereo.
+ * Common: --group 239.255.42.1 --udp 47474 --iface auto --hops 4 [--unicast HOST,HOST] [--lead 100] [--no-chime].
  */
 
 const fs = require("node:fs");
-const net = require("node:net");
 const { ChannelCrypto } = require("../lib/crypto");
 const { LanLink } = require("../lib/lan");
 const { ChannelNode } = require("../lib/node");
-const { SatelliteServer, encodeEvent, EventDecoder } = require("../lib/wyoming");
+const { FliteTts, VOICES } = require("../lib/tts");
 const { resample, bytesToSamples, samplesToBytes, toMono } = require("../lib/resample");
 const tones = require("../lib/tones");
 
@@ -40,7 +39,9 @@ async function main() {
       break;
     }
     case "say": {
-      const pcm = prepare(readWav(args.wav), args.chime !== false);
+      const speech = args.wav ? wavSamples(readWav(args.wav)) : bytesToSamples(await speak(args.text));
+      const parts = args.chime !== false ? [tones.chime(), speech, tones.silence(150)] : [speech, tones.silence(150)];
+      const pcm = samplesToBytes(tones.concat(parts));
       const { node, link } = await join();
       await sleep(1500); // let the phones hear our hello first
       log(`speaking ${(pcm.length / 640 / 50).toFixed(1)} s to ${node.roster().map(fmt).join(", ") || "(nobody)"}`);
@@ -50,69 +51,34 @@ async function main() {
       node.stop(); link.close();
       break;
     }
-    case "serve": {
-      const { node } = await join();
-      node.on("roster", (r) => log(`roster: ${r.map(fmt).join(", ") || "(nobody)"}`));
-      const allow = args.allow ? String(args.allow).split(",") : [];
-      const sat = new SatelliteServer({
-        identity: { name: args.name || "Laptop", version: "cli" },
-        log,
-        allowFrom: allow,
-        play: async (audio) => {
-          log(`announcement: ${audio.rate} Hz x${audio.channels}, ${Buffer.concat(audio.chunks).length} bytes`);
-          let s = toMono(bytesToSamples(Buffer.concat(audio.chunks)), audio.channels);
-          s = resample(s, audio.rate, 16000);
-          const pcm = samplesToBytes(tones.concat([tones.chime(), s, tones.silence(150)]));
-          await node.waitForSilence(300, 2000);
-          await node.speak(pcm);
-          log("announcement done");
-        },
-      });
-      sat.on("connect", () => log("orchestrator connected"));
-      sat.on("disconnect", () => log("orchestrator disconnected"));
-      let bind = args.bind || "127.0.0.1";
-      if (bind !== "127.0.0.1" && allow.length === 0) { log(`--bind ${bind} needs --allow (the Wyoming protocol has no authentication); using 127.0.0.1`); bind = "127.0.0.1"; }
-      const a = await sat.listen(Number(args.port) || 10701, bind);
-      log(`satellite listening on ${a.address}:${a.port}; Ctrl-C to stop`);
-      await new Promise(() => {});
-      break;
-    }
-    case "send": {
-      const [host, port] = String(args.to || "127.0.0.1:10701").split(":");
-      const wav = readWav(args.wav);
-      const sock = net.connect(Number(port), host);
-      await new Promise((r, j) => sock.once("connect", r).once("error", j));
-      const dec = new EventDecoder();
-      const got = [];
-      sock.on("data", (b) => { for (const e of dec.feed(b)) { got.push(e); log(`<- ${e.type} ${JSON.stringify(e.data)}`); } });
-      const send = (t, d, p) => { sock.write(encodeEvent(t, d, p)); log(`-> ${t}`); };
-      send("describe");
-      await sleep(200);
-      send("pause-satellite");
-      const fmtd = { rate: wav.rate, width: 2, channels: wav.channels };
-      send("audio-start", { ...fmtd, timestamp: 0 });
-      const chunk = wav.rate * wav.channels * 2 / 10; // 100 ms
-      for (let off = 0; off < wav.pcm.length; off += chunk) {
-        sock.write(encodeEvent("audio-chunk", fmtd, wav.pcm.subarray(off, off + chunk)));
-        await sleep(25); // ~4x real time, as the orchestrator paces
-      }
-      send("audio-stop");
-      const t0 = Date.now();
-      while (!got.some((e) => e.type === "played") && Date.now() - t0 < 60000) await sleep(50);
-      log(got.some((e) => e.type === "played") ? "played acknowledged" : "no played within 60 s");
-      sock.destroy();
+    case "tts": {
+      if (!args.out) throw new Error("--out FILE.wav is required");
+      const pcm = await speak(args.text);
+      fs.writeFileSync(args.out, wavFile(pcm, 16000));
+      log(`wrote ${args.out}: ${(pcm.length / 32000).toFixed(1)} s`);
       break;
     }
     default:
-      console.log(fs.readFileSync(__filename, "utf8").split("\n").slice(4, 13).join("\n"));
+      console.log(fs.readFileSync(__filename, "utf8").split("\n").slice(4, 14).join("\n"));
   }
+}
+
+async function speak(text) {
+  if (!text) throw new Error("--text is required");
+  const voice = args.voice || "slt";
+  if (!VOICES.includes(voice)) throw new Error(`--voice must be one of ${VOICES.join(", ")}`);
+  const tts = new FliteTts({ voice, rate: args.rate !== undefined ? Number(args.rate) : 1 });
+  const t0 = Date.now();
+  const pcm = await tts.synthesize(text);
+  log(`${voice}: "${FliteTts.normalise(text)}" in ${Date.now() - t0} ms, ${(pcm.length / 32000).toFixed(1)} s of speech`);
+  return pcm;
 }
 
 async function join() {
   if (!args.key) throw new Error("--key is required");
   const link = new LanLink({ group: args.group || "239.255.42.1", port: Number(args.udp) || 47474, iface: args.iface || "auto" });
   const where = await link.open();
-  log(`WLAN ${where.iface} ${where.address} broadcast ${where.broadcast}`);
+  log(`network ${where.iface} ${where.address} broadcast ${where.broadcast}`);
   if (args.unicast) {   // extra unicast targets besides the nodes learnt from hellos (a host that filters multicast)
     const hosts = String(args.unicast).split(",");
     const send = link.send.bind(link);
@@ -121,21 +87,16 @@ async function join() {
   }
   const node = new ChannelNode({ name: args.name || "Laptop", crypto: ChannelCrypto.forChannelKey(args.key), link, ttl: Number(args.hops) || 4,
     leadMs: args.lead !== undefined ? Number(args.lead) : undefined, repeatMs: args.repeat !== undefined ? Number(args.repeat) : undefined });
-  if (args.lead !== undefined || args.repeat !== undefined) log(`pacing: lead ${node.leadMs} ms, repeat ${node.repeatMs ? node.repeatMs + " ms" : "off"}`);
   node.start();
   return { node, link };
 }
 
-function prepare(wav, chime) {
-  let s = toMono(wav.samples, wav.channels);
-  s = resample(s, wav.rate, 16000);
-  const parts = chime ? [tones.chime(), s, tones.silence(150)] : [s, tones.silence(150)];
-  return samplesToBytes(tones.concat(parts));
+function wavSamples(wav) {
+  return resample(toMono(wav.samples, wav.channels), wav.rate, 16000);
 }
 
 /** Minimal RIFF/WAVE reader for PCM16. */
 function readWav(file) {
-  if (!file) throw new Error("--wav is required");
   const b = fs.readFileSync(file);
   if (b.toString("ascii", 0, 4) !== "RIFF" || b.toString("ascii", 8, 12) !== "WAVE") throw new Error("not a WAV file");
   let off = 12, rate = 0, channels = 0, bits = 0, pcm = null;
@@ -147,6 +108,14 @@ function readWav(file) {
   }
   if (!pcm || bits !== 16) throw new Error(`unsupported WAV (bits=${bits})`);
   return { rate, channels, pcm, samples: bytesToSamples(pcm) };
+}
+
+function wavFile(pcm, rate) {
+  const h = Buffer.alloc(44);
+  h.write("RIFF", 0); h.writeUInt32LE(36 + pcm.length, 4); h.write("WAVE", 8); h.write("fmt ", 12);
+  h.writeUInt32LE(16, 16); h.writeUInt16LE(1, 20); h.writeUInt16LE(1, 22); h.writeUInt32LE(rate, 24);
+  h.writeUInt32LE(rate * 2, 28); h.writeUInt16LE(2, 32); h.writeUInt16LE(16, 34); h.write("data", 36); h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
 }
 
 function fmt(n) { return `${n.name}${n.talking ? " (talking)" : ""}${n.hops ? ` +${n.hops}` : ""}`; }

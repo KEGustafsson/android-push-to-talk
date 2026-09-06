@@ -9,8 +9,8 @@ function harness(rules, sayImpl) {
   let clock = 0;
   const said = [];
   const bridge = new NotificationBridge({
-    say: sayImpl ?? (async (o) => { said.push(o); return { ok: true, queued: ["crewradio"] }; }),
-    rules: { targets: ["crewradio"], ...rules },
+    say: sayImpl ?? (async (o) => { said.push(o); return { ok: true, queued: 0 }; }),
+    rules: { ...rules },
     now: () => clock,
   });
   const delta = (path, value) => bridge.onDelta({ updates: [{ values: [{ path, value }] }] });
@@ -24,7 +24,7 @@ test("an alarm with sound is announced once on raise, urgent for emergency, and 
   h.delta("notifications.navigation.anchor", { state: "alarm", method: ["visual", "sound"], message: "Anchor is dragging" });
   await h.flush();
   assert.equal(h.said.length, 1);
-  assert.deepEqual(h.said[0], { text: "Anchor is dragging", priority: "normal", targets: ["crewradio"] });
+  assert.deepEqual(h.said[0], { text: "Anchor is dragging", priority: "normal" });
   h.delta("notifications.mob", { state: "emergency", method: ["sound"], message: "Man overboard" });
   await h.flush();
   assert.equal(h.said[1].priority, "urgent");
@@ -72,7 +72,7 @@ test("a raised alarm repeats every repeatSec until it clears; a changed message 
 test("a failed say is retried in 5 s rather than a full repeat later; no message falls back to the path", async () => {
   let fail = true;
   const calls = [];
-  const h = harness({ repeatSec: 60 }, async (o) => { calls.push(o); if (fail) throw new Error("wyoming down"); return { ok: true }; });
+  const h = harness({ repeatSec: 60 }, async (o) => { calls.push(o); if (fail) throw new Error("engine down"); return { ok: true }; });
   h.delta("notifications.propulsion.port.temperature", { state: "alarm", method: ["sound"] });
   await h.flush();
   assert.equal(calls[0].text, "propulsion port temperature");

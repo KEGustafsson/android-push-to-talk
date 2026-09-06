@@ -118,9 +118,9 @@ def announcement():
     y = 160
     cards = [
         ("notif", "Signal K notification", "notifications.navigation.anchor\nstate: alarm · method: sound\n\"Anchor is dragging, 25 m\"", "#FFB4AB"),
-        ("bridge", "signalk-crewradio · bridge", "at or above alarm, asks for sound\n→ say({ text, priority, targets: [\"crewradio\"] })\nrepeats every 30 s until it clears", CYAN),
-        ("wy", "signalk-wyoming · Piper", "text-to-speech, the announcement queue\nurgent jumps every queue", CYAN),
-        ("sat", "signalk-crewradio · satellite", "22 050 Hz → 16 kHz, a chime in front,\nwaits for a gap, keys the channel", CYAN),
+        ("bridge", "signalk-crewradio · bridge", "at or above alarm, asks for sound\n→ say({ text, priority })\nrepeats every 30 s until it clears", CYAN),
+        ("wy", "signalk-crewradio · voice", "Flite text-to-speech, 16 kHz, inside the plugin\nthe announcement queue: urgent first", CYAN),
+        ("sat", "signalk-crewradio · channel node", "a chime in front, waits for a gap,\nkeys the channel like a talker", CYAN),
         ("wlan", "Boat network → phones", "LAN or WLAN, the app's own packets, AES-256-GCM\nrelayed on over Bluetooth and Wi-Fi Aware", TALKING),
     ]
     for i, (nid, head, body, color) in enumerate(cards):
@@ -145,7 +145,7 @@ def how_it_fits():
         return txt(nid, label, x, y, w, h, size, INK_MUTED, mono=False, align=align)
     n = [rect("bg", 0, 0, W, H, fill=LIGHT_BG, stroke="none", arc=0)]
     n.append(txt("title", "How signalk-crewradio fits in", 60, 36, 900, 44, 30, INK, bold=True, mono=False))
-    n.append(txt("sub", "The Signal K server becomes one more node on the crew's channel, and a speaker for the boat's voice assistant.", 60, 82, 1100, 30, 16, INK_MUTED, mono=False))
+    n.append(txt("sub", "The Signal K server becomes one more node on the crew's channel, and speaks to it in its own voice.", 60, 82, 1100, 30, 16, INK_MUTED, mono=False))
 
     # left: where announcements come from
     n.append(box("alarms", "Alarms in Signal K\nanchor drag · man overboard · AIS · engine · depth", 60, 200, 330, 100, "#FFF3E0", "#EF6C00"))
@@ -154,12 +154,12 @@ def how_it_fits():
     # middle: the server
     n.append(rect("srv", 450, 150, 400, 560, fill=LIGHT_CARD, stroke=LIGHT_LINE, arc=14, width=1.5))
     n.append(txt("srvt", "Signal K server", 470, 158, 360, 30, 16, INK_MUTED, bold=True, mono=False))
-    n.append(box("cr", "signalk-crewradio\nnotification bridge · Wyoming satellite\nchannel node · roster", 480, 200, 340, 110, "#E0F7FA", "#00838F", 14, True))
-    n.append(box("wy", "signalk-wyoming\nsay() · announcement queue · urgent first", 480, 400, 340, 90, "#E8F5E9", "#2E7D32"))
-    n.append(box("piper", "signalk-piper\ntext-to-speech, 22 050 Hz", 480, 560, 340, 80, "#E8F5E9", "#2E7D32"))
+    n.append(box("cr", "signalk-crewradio\nnotification bridge · say() doors\nchannel node · roster", 480, 200, 340, 110, "#E0F7FA", "#00838F", 14, True))
+    n.append(box("wy", "announcement queue\nurgent first, cuts a normal one short", 480, 400, 340, 90, "#E8F5E9", "#2E7D32"))
+    n.append(box("piper", "Flite text-to-speech (WebAssembly)\nEnglish, 16 kHz, inside the plugin", 480, 560, 340, 80, "#E8F5E9", "#2E7D32"))
     n.append(cap("c1", "say(text, urgent)", 400, 340, 150, align="right"))
-    n.append(cap("c2", "audio", 760, 340, 120, align="left"))
-    n.append(cap("c3", "synthesize · audio", 560, 510, 180))
+    n.append(cap("c2", "speech", 760, 340, 120, align="left"))
+    n.append(cap("c3", "text · 16 kHz PCM", 560, 510, 180))
     n.append(cap("srvpaths", "publishes communication.crewradio.online · nodes · talking", 460, 668, 380, 22, 12))
 
     # right: the crew, on the boat network (the server may be on the wired side of the same router)
@@ -169,11 +169,11 @@ def how_it_fits():
         n.append(box(f"p{i}", name + "\nCrew Radio app", 950, y, 250, 90, "#E1F5FE", "#0288D1", 14, True))
     n.append(cap("c4", "16 kHz PCM · hellos · AES-256-GCM", 850, 262, 200, 44, 12))
     n.append(cap("c5", "the phones relay on over Bluetooth and Wi-Fi Aware", 930, 660, 290, 36, 12))
-    n.append(cap("legend", "the plugin talks to signalk-wyoming over the Wyoming protocol on loopback; the phones hear the same packets as from any crew member", 60, 740, 1160, 24, 12))
+    n.append(cap("legend", "no cloud, no containers, no other plugin: the voice is made inside the plugin; the phones hear the same packets as from any crew member", 60, 740, 1160, 24, 12))
 
     e = [
         ("alarms", "cr", "", edge),
-        ("say", "wy", "", edge),
+        ("say", "cr", "", edge, [(420, 455), (420, 300)]),
         ("cr", "wy", "", edge, [(560, 355)]),                 # left lane, down
         ("wy", "cr", "", edge, [(740, 355)]),                 # right lane, up
         ("wy", "piper", "", edge + "startArrow=block;startFill=1;"),
