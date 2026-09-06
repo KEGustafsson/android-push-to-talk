@@ -63,8 +63,10 @@ flags, hop budget). Audio frames and hellos number themselves independently per 
 payload is sealed by `ChannelCrypto` (AES‑256‑GCM, random nonce per packet, key derived from
 the channel key by PBKDF2) with the header minus the ttl byte as associated data; `hops` is the
 sender's original budget and is authenticated, so a relay clamps the ttl to it. The engine
-charges a global rate budget, opens every packet, then charges the sender's budget, before the
-seen-cache, the relay or the roster see it, so nothing without the crew's key gets anywhere. See [SECURITY.md](SECURITY.md) for the threat model.
+charges a global rate budget, opens every packet, drops duplicates by the seen-cache, then charges
+the sender's budget, before the relay or the roster see it, so nothing without the crew's key gets
+anywhere and the copies a frame arrives in (multicast and broadcast, several links) cost the sender
+nothing. See [SECURITY.md](SECURITY.md) for the threat model.
 
 <img src="images/packet-flow.png" alt="What happens to a received packet" width="640">
 
