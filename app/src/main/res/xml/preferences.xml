@@ -55,6 +55,11 @@
             app:defaultValue="false"
             app:summary="With a Bluetooth headset: just speak. The mic keys itself when you talk and un-keys 1.5 s after you stop; mute the headset to be sure you are off air. For headsets whose button does not reach the app. With the phone at your ear it is always on, on any output but the loudspeaker." />
         <SwitchPreferenceCompat
+            app:key="proximity_sensor"
+            app:title="Phone at the ear"
+            app:defaultValue="true"
+            app:summary="Use the proximity sensor: lifted to the ear, the sound moves to the earpiece, the screen goes dark and your voice keys the mic. Off if the sensor misfires in a pocket or under spray: the loudspeaker stays, the screen stays on, and voice keying on the phone works only with the earpiece output chosen." />
+        <SwitchPreferenceCompat
             app:key="cue_tones"
             app:title="Talk key tones"
             app:defaultValue="false"

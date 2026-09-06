@@ -262,6 +262,7 @@ class MainActivity : AppCompatActivity() {
         }
         e.headsetAsCall = prefs.headsetAsCall
         e.headsetVox = prefs.headsetVox
+        e.useProximity = prefs.proximitySensor
         e.channelKey = prefs.channelKey
         service?.cueTones = prefs.cueTones
         service?.refreshHardwareButtons()

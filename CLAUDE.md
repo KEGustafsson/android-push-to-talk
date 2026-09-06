@@ -130,6 +130,9 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   `AudioRoute.Policy.AUTO` that same flag also moves the route to the earpiece (`AudioRoute.atEar`),
   loudspeaker when away, like a phone call. The phone-mic monitor runs on any route but
   SPEAKER when no headset is in use; a manually keyed mic sends even away from the ear.
+  Setting `proximity_sensor` (`useProximity`, default on) turns the sensor off: AUTO stays on the
+  loudspeaker, no ear watch (screen stays on), and the phone-mic monitor runs only on the
+  EARPIECE route, armed by level alone, like a phone without the sensor.
   `startTalking` skips opening its own capture while the monitor runs and `sendFrame` is fed
   from it. Off by default, except that the `earpiece` route always runs it (the phone is at
   the ear, the screen out of reach). Cue tones (`cue_tones`) are off by default too.

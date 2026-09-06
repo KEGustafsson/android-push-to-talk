@@ -111,6 +111,9 @@ app.
   300/120 for the phone's own mic (`MicGate.tune`). On the phone the gate is armed only while
   the proximity sensor reads near: through the voice-call path close talk and a talker a
   metre away land in the same level range, so the ear is the discriminator, as in a phone call.
+  Setting `proximity_sensor` (`PttEngine.useProximity`) turns the sensor off: then the automatic
+  route never leaves the loudspeaker, the screen is not darkened, and the phone-mic gate runs
+  only on the earpiece route, armed by level alone, as on a phone without the sensor.
 - Why not the Bluetooth headset's own button? Measured on a Jabra Evolve2 65 with a Galaxy
   S25: while its SCO link is up the headset transmits nothing for its button (no AVRCP, no
   HFP command) on tap, double-tap or hold; with a Telecom call it sends an AVRCP Play, which
