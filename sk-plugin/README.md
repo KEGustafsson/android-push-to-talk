@@ -108,8 +108,8 @@ The same works as a PUT to `vessels.self.communication.crewradio.say` with a str
   to every phone the plugin has heard from directly. Access points send multicast at their lowest
   rate without acknowledgement, and phones lose a few percent of it even in the same cabin, which
   was audible as gaps; unicast is retried and rate-adapted, and the phones drop the copies they
-  get twice. Frames also leave 100 ms ahead of time so a late timer tick on the server never
-  makes a phone's queue run dry.
+  get twice. Frames also leave 100 ms ahead of time, which keeps a late timer tick on the server
+  (the usual 15 ms) from running a phone's queue dry; a longer stall is still audible.
 - **Bandwidth.** Speech goes out as PCM, 34 kB/s per copy while talking, nothing otherwise but one
   small hello a second; over a Bluetooth relay hop it is the same as a phone talking in PCM.
 - **Two nodes named alike** are fine; the phones list nodes by id.

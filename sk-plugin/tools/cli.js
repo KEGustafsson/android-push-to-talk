@@ -39,6 +39,7 @@ async function main() {
       break;
     }
     case "say": {
+      if (args.wav !== undefined && !(typeof args.wav === "string" && args.wav)) throw new Error("--wav needs a file name");
       const speech = args.wav ? wavSamples(readWav(args.wav)) : bytesToSamples(await speak(args.text));
       const parts = args.chime !== false ? [tones.chime(), speech, tones.silence(150)] : [speech, tones.silence(150)];
       const pcm = samplesToBytes(tones.concat(parts));
@@ -52,7 +53,7 @@ async function main() {
       break;
     }
     case "tts": {
-      if (!args.out) throw new Error("--out FILE.wav is required");
+      if (typeof args.out !== "string" || !args.out) throw new Error("--out FILE.wav is required");
       const pcm = await speak(args.text);
       fs.writeFileSync(args.out, wavFile(pcm, 16000));
       log(`wrote ${args.out}: ${(pcm.length / 32000).toFixed(1)} s`);
@@ -64,7 +65,7 @@ async function main() {
 }
 
 async function speak(text) {
-  if (!text) throw new Error("--text is required");
+  if (typeof text !== "string" || !text.trim()) throw new Error("--text is required");
   const voice = args.voice || "slt";
   if (!VOICES.includes(voice)) throw new Error(`--voice must be one of ${VOICES.join(", ")}`);
   const tts = new FliteTts({ voice, rate: args.rate !== undefined ? Number(args.rate) : 1 });

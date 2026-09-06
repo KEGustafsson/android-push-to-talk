@@ -111,6 +111,8 @@ class FliteTts {
 
   remember(key, pcm) {
     if (pcm.length > this.cacheBytes) return;
+    const previous = this.cache.get(key);           // two misses for the same text before either finished
+    if (previous) { this.cacheSize -= previous.length; this.cache.delete(key); }
     this.cache.set(key, pcm);
     this.cacheSize += pcm.length;
     while (this.cacheSize > this.cacheBytes && this.cache.size > 1) {

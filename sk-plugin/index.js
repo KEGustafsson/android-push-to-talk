@@ -184,6 +184,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
     tts = null;
     if (typeof app.emitPropertyValue === "function") app.emitPropertyValue(API_PROPERTY, null);
     publishRoster([]);
+    lastStatus = "";                                   // a restart must set its first line even if it reads the same
     app.setPluginStatus("Stopped");
   };
 

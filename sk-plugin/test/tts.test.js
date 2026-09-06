@@ -77,3 +77,11 @@ test("parseWav reads a PCM16 mono file and refuses others", () => {
   const stereo = Buffer.from(wav); stereo.writeUInt16LE(2, 22);
   assert.throws(() => parseWav(stereo), /unexpected WAV/);
 });
+
+test("two concurrent misses for the same text count once in the cache size", async () => {
+  const tts = new FliteTts({ voice: "slt", tempDir, cacheBytes: 100_000 });
+  const [a, b] = await Promise.all([tts.synthesize("Same text twice."), tts.synthesize("Same text twice.")]);
+  assert.equal(a.length, b.length);
+  assert.equal(tts.cache.size, 1);
+  assert.equal(tts.cacheSize, a.length, "the replaced entry's bytes are taken back");
+});

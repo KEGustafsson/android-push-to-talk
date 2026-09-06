@@ -41,7 +41,7 @@ class ChannelNode extends EventEmitter {
     this.heartbeatMs = opts.heartbeatMs ?? 1000;
     this.silenceMs = opts.silenceMs ?? 4000;
     this.talkingMs = opts.talkingMs ?? 500;
-    this.leadMs = opts.leadMs ?? LEAD_MS;       // how far ahead of real time frames go out
+    this.leadMs = Number.isFinite(opts.leadMs) && opts.leadMs >= 0 ? opts.leadMs : LEAD_MS;   // how far ahead of real time frames go out
     this.repeatMs = opts.repeatMs ?? 0;         // > 0: send every audio packet a second time this much later (heals a lost copy)
     this.now = opts.now ?? Date.now;
     this.senderId = randomSenderId();

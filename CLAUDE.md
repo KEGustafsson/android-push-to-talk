@@ -162,7 +162,8 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   byte for byte; `sk-plugin/test/vector.json` and the app's `CrossLanguageVectorTest` check the
   same packet, so change both when the wire changes.
 - `lib/tts.js` (`FliteTts`): one WASI instance per sentence (Flite's entry point is not
-  re-entrant), a WAV round trip through the plugin's data directory, a byte-bounded cache, units
+  re-entrant), a WAV round trip through `tts-tmp` in the plugin's data directory (the OS temp dir when the
+  server has no `getDataDirPath`), a byte-bounded cache, units
   and numbers spelled out, texts capped at 500 characters, synthesis serialised. `lib/queue.js`:
   normal announcements in order, urgent ones to the front, cutting a normal one short
   (`node.cancel()`). `index.js` exposes say() as a PUT handler on `communication.crewradio.say`,

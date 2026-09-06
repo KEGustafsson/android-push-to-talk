@@ -111,7 +111,7 @@ def phone(p, x, y, talker, peers, s=1.0):
 def announcement():
     n = [rect("bg", 0, 0, W, H, fill=BG, stroke="none", arc=0)]
     n.append(txt("title", "The boat speaks on the crew channel", 60, 44, 800, 44, 30, TEXT, bold=True, mono=False))
-    n.append(txt("sub", "A Signal K alarm, said by the boat's voice assistant, heard on every phone of the crew.", 60, 90, 760, 30, 16, MUTED, mono=False))
+    n.append(txt("sub", "A Signal K alarm, spoken by the plugin's own voice, heard on every phone of the crew.", 60, 90, 760, 30, 16, MUTED, mono=False))
     # the phone, at 0.8
     n += phone("ph", 820, 100, "SIRIUS", "3", 0.8)
     # the server side: a chain of cards
@@ -149,7 +149,7 @@ def how_it_fits():
 
     # left: where announcements come from
     n.append(box("alarms", "Alarms in Signal K\nanchor drag · man overboard · AIS · engine · depth", 60, 200, 330, 100, "#FFF3E0", "#EF6C00"))
-    n.append(box("say", "Anything that can speak\nNode-RED · dashboards · other plugins\nPUT voice.say · REST /api/say", 60, 400, 330, 110, "#F3E5F5", "#7B1FA2"))
+    n.append(box("say", "Anything that can speak\nNode-RED · dashboards · other plugins\nPUT communication.crewradio.say\nPOST /plugins/signalk-crewradio/say", 60, 395, 330, 120, "#F3E5F5", "#7B1FA2"))
 
     # middle: the server
     n.append(rect("srv", 450, 150, 400, 560, fill=LIGHT_CARD, stroke=LIGHT_LINE, arc=14, width=1.5))
