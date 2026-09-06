@@ -94,6 +94,8 @@ class Prefs(context: Context) {
     val headsetVox: Boolean get() = sp.getBoolean(KEY_HEADSET_VOX, false)
     /** A tone in the ear when a talk key keys or un-keys the mic. */
     val cueTones: Boolean get() = sp.getBoolean(KEY_CUE_TONES, false)
+    /** Read the proximity sensor: earpiece and voice keying at the ear, screen dark meanwhile. Off: the phone acts as one without the sensor. */
+    val proximitySensor: Boolean get() = sp.getBoolean(KEY_PROXIMITY, true)
     val relay: Boolean get() = sp.getBoolean(KEY_RELAY, true)
     val opus: Boolean get() = sp.getBoolean(KEY_OPUS, true)
 
@@ -122,6 +124,7 @@ class Prefs(context: Context) {
         const val KEY_HEADSET_CALL = "headset_call"
         const val KEY_HEADSET_VOX = "headset_vox"
         const val KEY_CUE_TONES = "cue_tones"
+        const val KEY_PROXIMITY = "proximity_sensor"
         const val ROUTE_AUTO = "auto"
         const val ROUTE_SPEAKER = "speaker"
         const val ROUTE_EARPIECE = "earpiece"

@@ -142,6 +142,20 @@ class PttEngine(
      */
     @Volatile private var atEar = false
     @Volatile private var phoneMic = false
+    /** True while the proximity sensor is registered, i.e. the ear is what arms the gate. */
+    @Volatile private var earWatched = false
+    /**
+     * Setting `proximity_sensor`. Off: the sensor is never read, so the phone behaves as one without
+     * it: the automatic route stays on the loudspeaker, the screen is not darkened, and the voice
+     * gate on the phone's own mic runs only on the earpiece route, armed by level alone.
+     */
+    @Volatile var useProximity = true
+        set(v) {
+            if (field == v) return
+            field = v
+            synchronized(monitorLock) { if (monitor != null && phoneMic) watchProximity(true) }
+            syncMonitor()
+        }
     private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as android.hardware.SensorManager
     private val proximity = object : android.hardware.SensorEventListener {
         override fun onSensorChanged(e: android.hardware.SensorEvent) {
@@ -158,11 +172,17 @@ class PttEngine(
     @Volatile var onEarWatch: ((Boolean) -> Unit)? = null
 
     private fun watchProximity(on: Boolean) {
-        val s = sensors.getDefaultSensor(android.hardware.Sensor.TYPE_PROXIMITY)
-        if (s == null) { atEar = true; return }                       // no sensor: trust the level alone
-        if (on) sensors.registerListener(proximity, s, android.hardware.SensorManager.SENSOR_DELAY_NORMAL)
-        else { sensors.unregisterListener(proximity); atEar = false; route.atEar = false }
-        onEarWatch?.invoke(on)
+        val s = sensors.getDefaultSensor(android.hardware.Sensor.TYPE_PROXIMITY)?.takeIf { useProximity }
+        sensors.unregisterListener(proximity)                          // harmless when it is not registered
+        val watch = on && s != null
+        if (watch) {
+            atEar = false                                              // the first reading decides
+            sensors.registerListener(proximity, s, android.hardware.SensorManager.SENSOR_DELAY_NORMAL)
+        } else {
+            atEar = on                                                 // no sensor, or the setting off: the level alone arms the gate
+        }
+        route.atEar = false
+        if (watch != earWatched) { earWatched = watch; onEarWatch?.invoke(watch) }
     }
 
     /** True while voice keying is armed: always with a headset, at the ear on the earpiece route. */
@@ -186,7 +206,9 @@ class PttEngine(
             synchronized(monitorLock) {
                 // On the phone itself the ear arms voice keying (earpiece, or auto at the ear); with a
                 // Bluetooth headset it is the setting. A wired headset has a button that works, so neither.
-                val phone = !route.headset && route.policy != AudioRoute.Policy.SPEAKER
+                // Without the proximity sensor the automatic route has no ear to go by, so only the
+                // earpiece route, chosen on purpose, runs the phone-mic monitor then.
+                val phone = !route.headset && (route.policy == AudioRoute.Policy.EARPIECE || (route.policy == AudioRoute.Policy.AUTO && useProximity))
                 val want = isConnected && !held && (phone || (headsetVox && route.bluetoothHeadset))
                 val wantPhoneMic = !route.bluetoothHeadset
                 // A capture tuned for the other mic is as wrong as one that should not run: a headset
@@ -206,12 +228,17 @@ class PttEngine(
                     gate.tune(phoneMic)
                     if (phoneMic) watchProximity(true)
                     preroll.clear()
+                    // A talk in progress on the engine's own capture (a setting or the route changed
+                    // mid-press) hands over to the monitor, which feeds sendFrame while talking: two
+                    // captures would send every frame twice and fight over the mic. Its callback takes
+                    // no lock, so stopping it here is safe.
+                    capture?.let { it.stop(); capture = null }
                     lateinit var m: AudioCapture
                     m = AudioCapture { pcm -> synchronized(monitorLock) { if (monitor === m) voiceFrame(pcm) } }
                     monitor = m                                   // published first: the worker may call back before start() returns
                     try {
                         m.start()
-                        onStatus(if (phoneMic) "Voice keys the mic at the ear" else "Voice keys the mic")
+                        onStatus(if (phoneMic && earWatched) "Voice keys the mic at the ear" else "Voice keys the mic")
                     } catch (e: Exception) {
                         monitor = null
                         if (phoneMic) watchProximity(false)
