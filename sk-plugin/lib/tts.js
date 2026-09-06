@@ -52,7 +52,7 @@ class FliteTts {
   static normalise(text) {
     let t = String(text ?? "").replace(/\s+/g, " ").trim();
     if (t.length > MAX_TEXT) t = t.slice(0, MAX_TEXT - 1) + ".";
-    t = t.replace(/([0-9]+)[.]([0-9])[0-9]+/g, (_, i, d) => `${i}.${d}`);   // 69.771 -> 69.8 is not worth hearing
+    t = t.replace(/[0-9]+[.][0-9]{2,}/g, (m) => String(Math.round(Number(m) * 10) / 10));   // 69.771 -> 69.8: the rest is not worth hearing
     // units after a number (Signal K alarm texts: depth, wind, battery, temperature)
     t = t.replace(/(\d)\s*(km\/h|m\/s|nm|kn|kts|kt|km|m|ft|°C|°F|°|%|hPa|mbar|bar|kW|W|Ah|A|V|l|L|min|s|h)(?![A-Za-z])/g, (_, d, u) => `${d} ${UNITS[u] ?? u}`);
     t = t.replace(/(\d)\s*°\s*(?![CF])/g, "$1 degrees ");

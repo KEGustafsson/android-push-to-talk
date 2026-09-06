@@ -15,7 +15,8 @@ test("normalise: whitespace, the length cap, and units after numbers", () => {
   assert.equal(FliteTts.normalise("Battery 12.2V, 45 %"), "Battery 12.2 volts, 45 percent");
   assert.equal(FliteTts.normalise("Heading 270°, 18°C"), "Heading 270 degrees, 18 degrees");
   assert.equal(FliteTts.normalise("a 5 km/h drift, 3 nm off"), "a 5 kilometres per hour drift, 3 nautical miles off");
-  assert.equal(FliteTts.normalise("No contact with sensor for 69.771 seconds, 12.25 V"), "No contact with sensor for 69.7 seconds, 12.2 volts");
+  assert.equal(FliteTts.normalise("No contact with sensor for 69.771 seconds, 12.25 V"), "No contact with sensor for 69.8 seconds, 12.3 volts");
+  assert.equal(FliteTts.normalise("depth 2.96 m, 1.04 kn"), "depth 3 metres, 1 knots");
   assert.equal(FliteTts.normalise(""), "");
   assert.equal(FliteTts.normalise(null), "");
   assert.equal(FliteTts.normalise("x".repeat(600)).length, 500);
