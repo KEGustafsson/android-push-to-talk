@@ -146,7 +146,9 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   `node --test` (`npm test`; `npm run coverage` enforces 80 % lines and functions, 75 % branches,
   excluding `tools/`). CI: `.github/workflows/signalk-ci.yml` calls the Signal K project's reusable
   `plugin-ci.yml@master` with `working-directory: sk-plugin` (that canonical reference is what the
-  App Store's Indicators tab looks for, so it is not pinned to a SHA). The App Store score (registry
+  App Store's Indicators tab looks for, so it is not pinned to a SHA). No lockfile in `sk-plugin/`:
+  the reusable workflow switches on setup-node's npm cache when any `package-lock.json` exists in
+  the checkout and then looks for it at the repository root, which fails every job (`.gitignore`). The App Store score (registry
   `test-harness/score.ts`) wants: installs with `--ignore-scripts`, constructor returns an object,
   `start()` completes with schema defaults and without `setPluginError` (so a missing channel key is
   a status, not an error), a schema, own tests that pass within 60 s, a clean `npm audit`, a
