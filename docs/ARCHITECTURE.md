@@ -157,7 +157,8 @@ of the transports, so they need a rejoin. The channel key is generated at random
 | `audio/AudioConfig` | 16 kHz, 20 ms, frame sizes |
 | `audio/AudioCapture`, `audio/AudioPlayback` | Mic in, speaker out, each on its own thread |
 | `audio/OpusEncoder`, `audio/OpusDecoder`, `audio/Decimator` | Platform Opus and the 48 → 16 kHz step |
-| `audio/Mixer`, `audio/Conceal`, `audio/Tones` | Per-talker queues, loss concealment, cue tones |
+| `audio/Mixer`, `audio/Conceal`, `audio/Tones` | Per-talker queues, loss concealment, cue tones, the mute |
+| `audio/CallVolume` | The phone's call volume behind the main screen's slider: stream in use, range, level |
 | `audio/MicGate` | Voice-operated keying |
 | `audio/AudioRoute` | Headset, earpiece or loudspeaker, following the hardware and the ear |
 | `transport/Transport` | The interface: `start`, `send` (returns whether anything went out), `stop`, `relayWithin` |

@@ -99,11 +99,18 @@ phone is at your ear. **Settings › Talking › Audio output** can pin it to th
 Half duplex on a loudspeaker works well; **full duplex** (everyone heard at once) is far better
 with a headset, because a loudspeaker feeds back into the microphone.
 
+How loud the others are is the **volume slider** above the disc: the phone's call volume for
+whatever the sound goes to, so the loudspeaker, the earpiece and a headset each keep their own
+level, and a headset's own volume buttons move the slider too. The **speaker glyph** at its left
+mutes the others without touching the level; you still hear your own talk-key tones, and the
+mute is cleared when you leave the channel.
+
 ## The Status screen
 
 Menu ⋮ › **Status** is the place to look when something seems off. It shows every crew member
 with the link they arrive on, how many hops away they are, what they are connected to and when
-they were last heard; this phone's name, mode, codec, where the audio goes and the app version;
+they were last heard; this phone's name, mode, codec, where the audio goes, the call volume and
+the app version;
 the phone's addresses; packet counters (received, sent, relayed, duplicates dropped, concealed,
 hellos); and the last forty status lines with time stamps.
 

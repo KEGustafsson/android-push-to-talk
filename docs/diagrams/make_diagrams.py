@@ -151,7 +151,7 @@ def main_screen(p, x, y, state, peers="2", peer_row=True, bt=True):
 
 
 def status_screen(p, x, y):
-    n = [frame(p + "f", x, y)]
+    n = [frame(p + "f", x, y, h=790)]
     n.append(rect(p + "bar", x + 2, y + 2, 356, 56, fill="#161C21", stroke="#161C21", arc=0))
     n.append(txt(p + "back", "←", x + 18, y + 12, 30, 36, 20, TEXT, align="center"))
     n.append(txt(p + "ttl", "Status", x + 56, y + 12, 200, 36, 20, TEXT, mono=False))
@@ -171,22 +171,22 @@ def status_screen(p, x, y):
     n.append(txt(p + "n2s", "AWARE · 1 HOP", x + 216, y + 234, 110, 22, 11, MUTED, align="right", spacing=1))
     n.append(txt(p + "n2d", "on BT · id cfe7198c · heard just now", x + 56, y + 256, 280, 18, 10, MUTED, mono=False))
     # this phone card
-    n.append(rect(p + "c2", x + 20, y + 312, 320, 236, arc=10))
+    n.append(rect(p + "c2", x + 20, y + 312, 320, 263, arc=10))
     n.append(txt(p + "c2t", "THIS PHONE", x + 36, y + 322, 140, 20, 11, CYAN, spacing=2))
     n.append(txt(p + "c2r", "428deaea", x + 220, y + 322, 106, 20, 11, MUTED, align="right", spacing=2))
     rows = [("MY NAME", "Deckhand"), ("MODE", "Half duplex"), ("RELAY", "On"), ("CODEC", "Opus"),
-            ("AUDIO", "Headset · Jabra"), ("HOP LIMIT", "4"), ("VERSION", "1.62 · 5f3e0ee")]
+            ("AUDIO", "Headset · Jabra"), ("CALL VOLUME", "9 / 15"), ("HOP LIMIT", "4"), ("VERSION", "1.125 · ac05fcf")]
     for i, (k, v) in enumerate(rows):
         ry = y + 350 + i * 27
         n.append(txt(p + f"k{i}", k, x + 36, ry, 120, 22, 11, MUTED, spacing=1))
         n.append(txt(p + f"v{i}", v, x + 150, ry, 176, 22, 13, TEXT, align="right", mono=False))
     # network card
-    n.append(rect(p + "c3", x + 20, y + 564, 320, 176, arc=10))
-    n.append(txt(p + "c3t", "NETWORK", x + 36, y + 574, 140, 20, 11, CYAN, spacing=2))
-    n.append(txt(p + "c3r", "BT + AWARE", x + 200, y + 574, 126, 20, 11, MUTED, align="right", spacing=2))
+    n.append(rect(p + "c3", x + 20, y + 591, 320, 176, arc=10))
+    n.append(txt(p + "c3t", "NETWORK", x + 36, y + 601, 140, 20, 11, CYAN, spacing=2))
+    n.append(txt(p + "c3r", "BT + AWARE", x + 200, y + 601, 126, 20, 11, MUTED, align="right", spacing=2))
     rows = [("WLAN0", "192.168.0.35/24"), ("AWARE_DATA0", "fe80::cb:b7ff:fe6c:de48"), ("MULTICAST", "239.255.42.1:47474"), ("BLUETOOTH", "Mate's phone")]
     for i, (k, v) in enumerate(rows):
-        ry = y + 602 + i * 30
+        ry = y + 629 + i * 30
         n.append(txt(p + f"nk{i}", k, x + 36, ry, 120, 22, 11, MUTED, spacing=1))
         n.append(txt(p + f"nv{i}", v, x + 130, ry, 196, 22, 12, TEXT, align="right", mono=False))
     return n
@@ -241,7 +241,7 @@ diagram("screens", "The screens", nodes=(
 
 diagram("screen-main", "Main screen", nodes=main_screen("a", 20, 20, "on"), edges=[], width=400, height=800)
 diagram("screen-on-air", "On air", nodes=main_screen("a", 20, 20, "air"), edges=[], width=400, height=800)
-diagram("screen-status", "Status screen", nodes=status_screen("s", 20, 20), edges=[], width=400, height=800)
+diagram("screen-status", "Status screen", nodes=status_screen("s", 20, 20), edges=[], width=400, height=830)
 diagram("screen-settings", "Settings screen", nodes=settings_screen("s", 20, 20), edges=[], width=400, height=980)
 
 
