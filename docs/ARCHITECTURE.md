@@ -36,7 +36,14 @@ echo cancellation and noise suppression), the AOSP Opus codec through `MediaCode
   back to raw PCM and says so.
 - `Mixer` keeps a small jitter queue per talker (two frames of pre-fill, ten at most), sums the
   queues into one stream on its own thread, and paces itself on the blocking `AudioTrack`
-  write. It also plays cue tones (`Tones`) on top of whatever is sounding.
+  write. It also plays cue tones (`Tones`) on top of whatever is sounding. The main screen's
+  mute is a gain of 0 on the summed speech, with the cue tones added after it, so a muted phone
+  still hears its own key beeps; it is engine state, cleared on disconnect. The level itself is
+  the phone's call volume (`CallVolume`): the track has `USAGE_VOICE_COMMUNICATION`, so the
+  slider sets the voice-call stream, or the SCO stream while a Bluetooth headset carries the
+  audio on Android 13 and below, in the phone's own steps, and follows the system's
+  volume-changed broadcast when a headset button moves it. The volume keys cannot do this on
+  channel, since they are a talk key there.
 - Loss concealment lives in the mixer, not the codec, because `MediaCodec` cannot ask the AOSP
   Opus decoder for it (an empty input buffer yields empty output). `Conceal` repeats the last
   frame with decaying gain (0.6ⁿ) for at most three missing slots, then silence. The engine

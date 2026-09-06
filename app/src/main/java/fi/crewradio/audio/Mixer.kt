@@ -39,6 +39,15 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
     /** Output silence (queues keep draining) - the channel is on hold behind a phone call. */
     @Volatile var muted = false
 
+    /**
+     * Gain on the summed speech, 0..1: the user's mute is 0 (the level itself is the phone's call
+     * volume, see [CallVolume]). Cue tones are added after it, so a muted phone still hears its
+     * own key beeps.
+     */
+    @Volatile var gain = 1f
+        set(value) { field = value.coerceIn(0f, 1f); gainQ15 = (field * 32768f).toInt() }
+    @Volatile private var gainQ15 = 32768
+
     private val prefillFrames = 2     // 40 ms before a new stream starts draining
     private val maxQueuedFrames = 10  // 200 ms cap; drop oldest beyond this
     private val idleTimeoutNs = 1_000_000_000L
@@ -58,13 +67,6 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
                 acc.fill(0)
                 var active = 0
                 val now = System.nanoTime()
-                val cue = synchronized(cues) { cues.pollFirst() }
-                if (cue != null) {
-                    active++
-                    for (i in 0 until AudioConfig.FRAME_SAMPLES) {
-                        acc[i] += (cue[2 * i + 1].toInt() shl 8) or (cue[2 * i].toInt() and 0xFF)
-                    }
-                }
                 for ((id, st) in streams) {
                     val frame = synchronized(st) { nextFrame(st, now) }
                     if (frame != null) {
@@ -78,6 +80,16 @@ class Mixer(private val playback: AudioPlayback = AudioPlayback()) {
                         }
                     } else if (now - st.lastSeen > idleTimeoutNs) {
                         streams.remove(id)
+                    }
+                }
+                // The user's volume scales the speech only; the cue is the phone's own voice, added at full level.
+                val g = gainQ15
+                if (active > 0 && g != 32768) for (i in 0 until AudioConfig.FRAME_SAMPLES) acc[i] = ((acc[i].toLong() * g) shr 15).toInt()
+                val cue = synchronized(cues) { cues.pollFirst() }
+                if (cue != null) {
+                    active++
+                    for (i in 0 until AudioConfig.FRAME_SAMPLES) {
+                        acc[i] += (cue[2 * i + 1].toInt() shl 8) or (cue[2 * i].toInt() and 0xFF)
                     }
                 }
                 if (active == 0 || muted) {

@@ -128,9 +128,17 @@ def main_screen(p, x, y, state, peers="2", peer_row=True, bt=True):
     n.append(rect(p + "sw", x + 20, row_y, 320, 50))
     n.append(txt(p + "swl", "ON CHANNEL" if on else "OFF · TAP TO JOIN", x + 36, row_y + 8, 200, 34, 13, (CYAN if on else MUTED), spacing=1))
     n += toggle(p + "sw", x + 276, row_y + 11, on)
+    # Playback volume row: mute glyph, slider, number.
+    vol_y = row_y + 64
+    n.append(rect(p + "vr", x + 20, vol_y, 320, 50))
+    n.append(txt(p + "vi", "🔊", x + 30, vol_y + 10, 30, 30, 16, TEXT, align="center", mono=False))
+    n.append(rect(p + "vt", x + 68, vol_y + 22, 210, 6, fill="#3A444A", stroke="#3A444A", arc=50))
+    n.append(rect(p + "vf", x + 68, vol_y + 22, 147, 6, fill=CYAN, stroke=CYAN, arc=50))
+    n.append((p + "vk", "", x + 205, vol_y + 15, 20, 20, f"ellipse;whiteSpace=wrap;html=1;fillColor={CYAN};strokeColor=none;"))
+    n.append(txt(p + "vv", "70", x + 286, vol_y + 12, 40, 26, 14, TEXT, bold=True, align="right"))
     if state == "air":
-        n.append(txt(p + "tk", "● MATE TALKING", x + 24, row_y + 62, 300, 20, 11, TALKING, spacing=2))
-    cx, cy, r = x + 180, y + 555, 150
+        n.append(txt(p + "tk", "● MATE TALKING", x + 24, vol_y + 58, 300, 20, 11, TALKING, spacing=2))
+    cx, cy, r = x + 180, y + 585, 135
     if state == "air":
         n.append((p + "d", "", cx - r, cy - r, 2 * r, 2 * r, f"ellipse;whiteSpace=wrap;html=1;fillColor={ON_AIR};strokeColor={ON_AIR_RING};strokeWidth=10;"))
         n.append(txt(p + "d1", "ON AIR", cx - r, cy - 40, 2 * r, 50, 40, "#FFDAD6", bold=True, align="center", mono=False))

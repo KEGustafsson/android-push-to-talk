@@ -5,8 +5,10 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.content.ComponentName
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -32,6 +34,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.slider.Slider
+import fi.crewradio.audio.CallVolume
 import fi.crewradio.transport.BluetoothTransport
 import fi.crewradio.transport.LanTransport
 import fi.crewradio.transport.Transport
@@ -43,8 +47,8 @@ import fi.crewradio.transport.WifiAwareTransport
  * interrupts a running session.
  *
  * The "Radio" layout, top to bottom: channel header (crew name, how many aboard, menu),
- * three transport tiles, a strip with the Bluetooth peer and Connect, a card with the
- * status line and the crew, and the talk disc taking every pixel that is left. Settings
+ * three transport tiles, a strip with the Bluetooth peer, the channel switch, the playback
+ * volume (an in-app gain with a mute), and the talk disc taking every pixel that is left. Settings
  * is behind the menu. Everything the user touches is at least 44 dp; the disc is
  * about 90% of the screen width.
  */
@@ -61,6 +65,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pttButton: MaterialButton
     private lateinit var channelRow: View
     private lateinit var channelState: TextView
+    private lateinit var muteButton: ImageButton
+    private lateinit var volumeSlider: Slider
+    private lateinit var volumeValue: TextView
+    private lateinit var callVolume: CallVolume
+    private var syncingVolume = false
+    /** A headset button or the phone's own panel moved the level: follow it. */
+    private val volumeChanged = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { renderVolume() }
+    }
     private lateinit var channelSwitch: MaterialSwitch
     private var syncingSwitch = false                  // true while syncUi() moves the switch itself
     private lateinit var peerButton: TextView
@@ -113,6 +126,9 @@ class MainActivity : AppCompatActivity() {
         pttButton = findViewById(R.id.pttButton)
         channelRow = findViewById(R.id.channelRow)
         channelState = findViewById(R.id.channelState)
+        muteButton = findViewById(R.id.muteButton)
+        volumeSlider = findViewById(R.id.volumeSlider)
+        volumeValue = findViewById(R.id.volumeValue)
         channelSwitch = findViewById(R.id.channelSwitch)
         peerButton = findViewById(R.id.peerButton)
         menuButton = findViewById(R.id.menuButton)
@@ -171,6 +187,23 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // Volume: the slider is the phone's call volume, what the volume keys would set in a call
+        // (on channel they are a talk key); the mute is session state, the engine's, cleared on leaving.
+        callVolume = CallVolume(this)
+        volumeSlider.addOnChangeListener { _, value, fromUser ->
+            if (!fromUser || syncingVolume) return@addOnChangeListener
+            callVolume.set(callVolume.stream(engine?.bluetoothHeadsetNow == true), value.toInt())
+            renderVolume()
+        }
+        muteButton.setOnClickListener {
+            val e = engine ?: return@setOnClickListener
+            if (!e.isConnected) return@setOnClickListener
+            it.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            e.muted = !e.muted
+            service?.refreshNotification()
+            syncUi()
+        }
+
         pttButton.setOnTouchListener { v, ev ->
             val e = engine ?: return@setOnTouchListener false
             if (e.mode == PttEngine.Mode.HALF_DUPLEX) {
@@ -206,6 +239,8 @@ class MainActivity : AppCompatActivity() {
     /** Binds while visible; BIND_AUTO_CREATE means the service (and its senderId) exists whenever the UI is up. */
     override fun onStart() {
         super.onStart()
+        // A protected system broadcast: only the system can send it, so exporting the receiver exposes nothing.
+        ContextCompat.registerReceiver(this, volumeChanged, IntentFilter(CallVolume.VOLUME_CHANGED_ACTION), ContextCompat.RECEIVER_EXPORTED)
         bindService(Intent(this, PttService::class.java), connection, Context.BIND_AUTO_CREATE)
     }
 
@@ -222,6 +257,7 @@ class MainActivity : AppCompatActivity() {
         service?.statusListener = null
         service?.rosterListener = null
         service = null
+        unregisterReceiver(volumeChanged)
         unbindService(connection)   // the service keeps running while connected; see PttService
         super.onStop()
     }
@@ -275,11 +311,13 @@ class MainActivity : AppCompatActivity() {
      */
     private fun syncUi() {
         val connected = engine?.isConnected == true
+        val muted = connected && engine?.muted == true
         syncingSwitch = true
         channelSwitch.isChecked = connected
         syncingSwitch = false
-        channelState.text = getString(if (connected) R.string.channel_on else R.string.channel_off)
-        channelState.setTextColor(ContextCompat.getColor(this, if (connected) R.color.primary else R.color.text_dim))
+        channelState.text = getString(if (muted) R.string.channel_on_muted else if (connected) R.string.channel_on else R.string.channel_off)
+        channelState.setTextColor(ContextCompat.getColor(this, if (muted) R.color.error else if (connected) R.color.primary else R.color.text_dim))
+        renderVolume()
         for (tile in tiles) tile.root.alpha = if (connected) 0.55f else 1f
         peerButton.alpha = if (connected) 0.55f else 1f
         // The screen stays on only while on channel, and only if the user wants it to.
@@ -316,6 +354,33 @@ class MainActivity : AppCompatActivity() {
         pttButton.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, if (live) R.color.on_air else R.color.primary))
         pttButton.setTextColor(ContextCompat.getColor(this, if (live) R.color.on_air_text else R.color.on_primary))
         pttButton.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, if (live) R.color.error else R.color.outline))
+    }
+
+    /**
+     * The volume row: the slider shows the call volume of the stream in use (the Bluetooth
+     * headset's while it carries the audio), in the phone's own steps, and the number is the
+     * step. The mute glyph exists only on channel, so off channel it is dimmed.
+     */
+    private fun renderVolume() {
+        val connected = engine?.isConnected == true
+        val muted = connected && engine?.muted == true
+        val stream = callVolume.stream(engine?.bluetoothHeadsetNow == true)
+        val min = callVolume.min(stream)
+        val max = maxOf(callVolume.max(stream), min + 1)
+        val level = callVolume.get(stream).coerceIn(min, max)
+        syncingVolume = true
+        volumeSlider.valueFrom = min.toFloat()
+        volumeSlider.valueTo = max.toFloat()
+        volumeSlider.value = level.toFloat()
+        syncingVolume = false
+        muteButton.setImageResource(if (muted) R.drawable.ic_volume_off else R.drawable.ic_volume)
+        muteButton.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(this, if (muted) R.color.error else R.color.secondary))
+        muteButton.contentDescription = getString(if (muted) R.string.volume_unmute else R.string.volume_mute)
+        muteButton.alpha = if (connected) 1f else 0.55f
+        volumeValue.text = if (muted) getString(R.string.volume_muted_value) else level.toString()
+        volumeValue.setTextColor(ContextCompat.getColor(this, if (muted) R.color.error else R.color.text))
+        volumeSlider.thumbTintList = ColorStateList.valueOf(ContextCompat.getColor(this, if (muted) R.color.text_dim else R.color.primary))
+        volumeSlider.trackActiveTintList = ColorStateList.valueOf(ContextCompat.getColor(this, if (muted) R.color.dot_idle else R.color.primary))
     }
 
     /**
