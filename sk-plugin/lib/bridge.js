@@ -25,6 +25,7 @@ class NotificationBridge extends EventEmitter {
    * @param {string[]} [opts.rules.urgentStates=["emergency"]]
    * @param {string[]} [opts.rules.include=[]]      path globs under notifications., empty = all
    * @param {string[]} [opts.rules.exclude=[]]
+   * @param {boolean} [opts.rules.sayPath=true]     say the state and the path before the message
    * @param {(msg:string)=>void} [opts.log]
    * @param {() => number} [opts.now]
    */
@@ -38,6 +39,7 @@ class NotificationBridge extends EventEmitter {
     this.urgent = new Set(r.urgentStates ?? ["emergency"]);
     this.include = (r.include ?? []).map(globToRegExp);
     this.exclude = (r.exclude ?? []).map(globToRegExp);
+    this.sayPath = r.sayPath ?? true;
     this.log = opts.log ?? (() => {});
     this.now = opts.now ?? Date.now;
     this.active = new Map(); // path -> {state, message, lastSaidAt, count}
@@ -104,7 +106,7 @@ class NotificationBridge extends EventEmitter {
     entry.lastSaidAt = this.now();
     entry.count++;
     const priority = this.urgent.has(entry.state) ? "urgent" : "normal";
-    const opts = { text: entry.message, priority };
+    const opts = { text: this.sayPath ? spoken(path, entry.state, entry.message) : entry.message, priority };
     this.emit("announce", { path, ...entry, priority });
     Promise.resolve()
       .then(() => this.say(opts))
@@ -125,6 +127,18 @@ function methodsOf(value) {
   return [];
 }
 
+const STATE_WORD = Object.freeze({ alert: "Alert", warn: "Warning", alarm: "Alarm", emergency: "Emergency" });
+
+/**
+ * What is said for a notification: the state, the path in words, then the message, so the crew
+ * hears where an alarm comes from ("Alarm, navigation position: no contact with sensor for 70
+ * seconds"). A notification without a message is the state and the path alone.
+ */
+function spoken(path, state, message) {
+  const head = `${STATE_WORD[state] ?? state}, ${humanise(path)}`;
+  return message && message !== humanise(path) ? `${head}: ${message}` : head;
+}
+
 /** "navigation.anchor.currentRadius" -> "navigation anchor current radius" */
 function humanise(path) {
   return path
@@ -140,4 +154,4 @@ function globToRegExp(glob) {
   return new RegExp(`^${esc}$`);
 }
 
-module.exports = { NotificationBridge, RANK, humanise, globToRegExp };
+module.exports = { NotificationBridge, RANK, humanise, spoken, globToRegExp };

@@ -3,7 +3,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { NotificationBridge, humanise, globToRegExp } = require("../lib/bridge");
+const { NotificationBridge, humanise, spoken, globToRegExp } = require("../lib/bridge");
 
 function harness(rules, sayImpl) {
   let clock = 0;
@@ -24,7 +24,7 @@ test("an alarm with sound is announced once on raise, urgent for emergency, and 
   h.delta("notifications.navigation.anchor", { state: "alarm", method: ["visual", "sound"], message: "Anchor is dragging" });
   await h.flush();
   assert.equal(h.said.length, 1);
-  assert.deepEqual(h.said[0], { text: "Anchor is dragging", priority: "normal" });
+  assert.deepEqual(h.said[0], { text: "Alarm, navigation anchor: Anchor is dragging", priority: "normal" });
   h.delta("notifications.mob", { state: "emergency", method: ["sound"], message: "Man overboard" });
   await h.flush();
   assert.equal(h.said[1].priority, "urgent");
@@ -61,7 +61,7 @@ test("a raised alarm repeats every repeatSec until it clears; a changed message 
   h.delta("notifications.navigation.anchor", { state: "alarm", method: ["sound"], message: "Dragging 25 m" });
   await h.flush();
   assert.equal(h.said.length, 3);
-  assert.equal(h.said[2].text, "Dragging 25 m");
+  assert.equal(h.said[2].text, "Alarm, navigation anchor: Dragging 25 m");
   h.delta("notifications.navigation.anchor", { state: "normal", method: [], message: "" });
   h.advance(60_000);
   h.bridge.repeatDue();
@@ -75,7 +75,7 @@ test("a failed say is retried in 5 s rather than a full repeat later; no message
   const h = harness({ repeatSec: 60 }, async (o) => { calls.push(o); if (fail) throw new Error("engine down"); return { ok: true }; });
   h.delta("notifications.propulsion.port.temperature", { state: "alarm", method: ["sound"] });
   await h.flush();
-  assert.equal(calls[0].text, "propulsion port temperature");
+  assert.equal(calls[0].text, "Alarm, propulsion port temperature");
   fail = false;
   h.advance(5_000);
   h.bridge.repeatDue();
@@ -89,4 +89,14 @@ test("helpers: humanise and globs", () => {
   assert.ok(!globToRegExp("navigation.*").test("navigation.anchor.radius"));
   assert.ok(globToRegExp("navigation.**").test("navigation.anchor.radius"));
   assert.ok(globToRegExp("mob").test("mob"));
+});
+
+test("the spoken form names the state and the path, unless sayPath is off", async () => {
+  assert.equal(spoken("notifications.navigation.position", "alarm", "No contact with sensor for 69.8 seconds"), "Alarm, navigation position: No contact with sensor for 69.8 seconds");
+  assert.equal(spoken("notifications.mob", "emergency", ""), "Emergency, mob");
+  assert.equal(spoken("notifications.electrical.batteries.house.voltage", "warn", "electrical batteries house voltage"), "Warning, electrical batteries house voltage");
+  const h = harness({ repeatSec: 0, sayPath: false });
+  h.delta("notifications.navigation.position", { state: "alarm", method: ["sound"], message: "No contact with sensor" });
+  await h.flush();
+  assert.equal(h.said[0].text, "No contact with sensor");
 });
