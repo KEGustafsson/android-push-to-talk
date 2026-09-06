@@ -16,6 +16,7 @@
   },
   "keywords": [
     "signalk-node-server-plugin",
+    "signalk-webapp",
     "signalk-category-notifications",
     "crew-radio",
     "push-to-talk",
@@ -30,6 +31,7 @@
     "appIcon": "./docs/icon.png",
     "screenshots": [
       "./docs/screenshots/plugin-config.png",
+      "./docs/screenshots/webapp.png",
       "./docs/screenshots/announcement.png",
       "./docs/screenshots/data-browser.png",
       "./docs/screenshots/how-it-fits.png"
@@ -38,6 +40,7 @@
   "files": [
     "index.js",
     "lib/",
+    "public/",
     "tools/",
     "docs/",
     "README.md",

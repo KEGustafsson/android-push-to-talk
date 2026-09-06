@@ -1,6 +1,6 @@
 # Capturing the admin UI pictures
 
-`plugin-config.png` and `data-browser.png` are real screenshots of a Signal K server with the
+`plugin-config.png`, `data-browser.png` and `webapp.png` are real screenshots of a Signal K server with the
 plugin installed, not drawings. To take them again after a change, on a machine with Node 24:
 
 1. A scratch server, apart from any real installation:
@@ -21,6 +21,7 @@ plugin installed, not drawings. To take them again after a change, on a machine 
    so the status line reads "announcing" while the picture is taken.
 4. Capture at 1280 x 800 with a headless Chromium browser over the DevTools protocol (the
    `--screenshot` flag proved unreliable on Windows):
+   `http://localhost:3000/signalk-crewradio/` (the web page, while the announcement plays),
    `http://localhost:3000/admin/#/serverConfiguration/plugins/signalk-crewradio` and
    `http://localhost:3000/admin/#/databrowser`, waiting a few seconds after navigation for the
    React app to fetch its data.

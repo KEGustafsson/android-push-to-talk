@@ -5,7 +5,7 @@ server becomes one more node on the crew's push-to-talk network, over the boat's
 the phones relay it onward over Bluetooth and Wi‑Fi Aware like any other talker. The voice is
 made inside the plugin: no cloud, no containers, no other plugin needed.
 
-Three things:
+Four things:
 
 1. **Say anything to the crew.** A text becomes speech and goes out on the channel. Three doors:
    a PUT to the Signal K path `communication.crewradio.say`, `POST /plugins/signalk-crewradio/say`,
@@ -16,6 +16,10 @@ Three things:
    and stops when it clears. `emergency` is said as urgent.
 3. **The crew roster in Signal K.** `communication.crewradio.online`, `.nodes`, `.talking` and
    `.speaking` show who is on the channel, who is talking and whether the server is announcing.
+4. **A web page.** Webapps › Crew Radio (`http://<server>:3000/signalk-crewradio/`) shows the
+   network link, who is on the channel and who is talking, the queue, and has a test call: type a
+   text, choose normal or urgent, and it is said on the channel. The quickest way to check that the
+   server reaches the phones.
 
 Everything on the wire is the app's own format: AES‑256‑GCM under the crew's channel key, the
 same packets, the same roster hellos. The plugin's tests and the app's unit tests check the same
@@ -23,14 +27,16 @@ byte vector, so the two cannot drift apart unnoticed.
 
 ![The plugin's page in the Signal K admin UI](./docs/screenshots/plugin-config.png)
 
+![The web page: status, the crew on the channel, and a test call](./docs/screenshots/webapp.png)
+
 ![The roster in the Data Browser](./docs/screenshots/data-browser.png)
 
 ![An alarm on its way from Signal K to the crew's phones](./docs/screenshots/announcement.png)
 
 ![How the plugin fits between Signal K and the phones](./docs/screenshots/how-it-fits.png)
 
-The admin UI pictures are captures of a Signal K server 2.31 with the plugin installed; the two
-others are drawn. All carry example names only.
+The admin UI and web page pictures are captures of a Signal K server 2.31 with the plugin
+installed; the two others are drawn. All carry example names only.
 
 ## The voice
 
@@ -94,6 +100,7 @@ The same works as a PUT to `vessels.self.communication.crewradio.say` with a str
 | Network interface | auto | The server's interface on the boat network, wired (eth0) or WLAN (wlan0). auto: wlan first, then eth/en, then anything with an IPv4 address. |
 | Hop budget | 4 | How far phones may relay the server's packets. |
 | Announce from state | alarm | alert, warn, alarm or emergency. |
+| Say the state and the path first | on | "Alarm, navigation position: no contact with sensor for 70 seconds" rather than the message alone, so the crew hears where it comes from. |
 | Only notifications that ask for sound | on | Signal K notifications carry `method: [visual, sound]`. |
 | Repeat every | 30 s | 0 says it once. |
 | Urgent states | emergency | Said first, interrupting a normal announcement. |

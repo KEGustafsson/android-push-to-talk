@@ -19,6 +19,7 @@
 const os = require("node:os");
 const path = require("node:path");
 const { ChannelCrypto } = require("./lib/crypto");
+const { Transports } = require("./lib/packet");
 const { LanLink } = require("./lib/lan");
 const { ChannelNode } = require("./lib/node");
 const { FliteTts, VOICES, MAX_TEXT } = require("./lib/tts");
@@ -54,9 +55,12 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
   let reopenTimer = null;
   let backoffMs = 1000;
   let lastStatus = "";
+  let linkInfo = null;                             // {iface, address, broadcast} while the link is up
+  let startedAt = 0;
 
   plugin.start = function (options) {
     running = true;
+    startedAt = Date.now();
     cfg = withDefaults(options, app);
     if (!cfg.channelKey) {
       // Not configured yet is not a failure: nothing is started, and the status says what is needed.
@@ -91,6 +95,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
         const where = await mine.open();
         if (!running || link !== mine) { mine.close(); return; }   // stopped or reopened while the socket was binding
         backoffMs = 1000;
+        linkInfo = where;
         app.debug(`Network link up on ${where.iface} ${where.address} (group ${cfg.group}:${cfg.port}, broadcast ${where.broadcast})`);
       } catch (e) {
         app.error(`Network link: ${e.message}`);
@@ -108,6 +113,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
       if (!running || reopenTimer) return;
       if (node) { node.stop(); node = null; }
       if (link) { link.close(); link = null; }
+      linkInfo = null;
       reopenTimer = setTimeout(() => { reopenTimer = null; openLink(); }, backoffMs);
       backoffMs = Math.min(backoffMs * 2, 15_000);
     };
@@ -138,6 +144,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
           urgentStates: cfg.bridge.urgentStates,
           include: cfg.bridge.include,
           exclude: cfg.bridge.exclude,
+          sayPath: cfg.bridge.sayPath,
         },
       });
       bridge.on("announce", (a) => app.debug(`announce ${a.priority}: ${a.path}: ${a.message}`));
@@ -154,8 +161,12 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
     status();
   };
 
-  /** REST: POST /plugins/signalk-crewradio/say with {text, priority} or a plain text body; GET for the state. */
+  /**
+   * REST: POST /plugins/signalk-crewradio/say with {text, priority} or a plain text body; GET /say for
+   * the voice and queue; GET /status for everything the web page (public/index.html) shows.
+   */
   plugin.registerWithRouter = function (router) {
+    router.get("/status", (req, res) => res.json(statusNow()));
     router.post("/say", (req, res) => {
       const done = (body) => {
         say(typeof body === "string" ? { text: body } : body ?? {}).then(
@@ -181,6 +192,7 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
     if (queue) { queue.stop(); queue = null; }
     if (node) { node.stop(); node = null; }
     if (link) { link.close(); link = null; }
+    linkInfo = null;
     tts = null;
     if (typeof app.emitPropertyValue === "function") app.emitPropertyValue(API_PROPERTY, null);
     publishRoster([]);
@@ -223,6 +235,25 @@ module.exports = function crewRadioPlugin(app, deps = {}) {
     if (cfg.waitForSilenceMs > 0) await node.waitForSilence(300, cfg.waitForSilenceMs);
     if (cancelled()) return;
     await node.speak(pcm);
+  }
+
+  /** The plugin's state for the web page: link, roster, queue, voice, counters. */
+  function statusNow() {
+    const roster = node ? node.roster() : [];
+    return {
+      running,
+      channelKey: !!cfg?.channelKey,
+      name: cfg?.nodeName ?? null,
+      statusLine: lastStatus,
+      link: linkInfo ? { iface: linkInfo.iface, address: linkInfo.address } : null,
+      group: cfg?.group ?? null, port: cfg?.port ?? null, hops: cfg?.hops ?? null,
+      voice: cfg?.voice ?? null, voices: VOICES, rate: cfg?.rate ?? null,
+      speaking: !!node?.speaking,
+      queued: (queue?.size ?? 0) + (queue?.current && !node?.speaking ? 1 : 0),
+      roster: roster.map((n) => ({ name: n.name, transports: describeTransports(n.transports), hops: n.hops, talking: n.talking, ageMs: n.ageMs })),
+      stats: { ...(node?.stats ?? { rx: 0, tx: 0, rejected: 0 }), synthesized: tts?.stats?.synthesized ?? 0, cached: tts?.stats?.cached ?? 0 },
+      uptimeSec: running ? Math.round((Date.now() - startedAt) / 1000) : 0,
+    };
   }
 
   function publishRoster(roster) {
@@ -283,8 +314,18 @@ function withDefaults(o, app) {
       urgentStates: Array.isArray(b.urgentStates) ? b.urgentStates : ["emergency"],
       include: Array.isArray(b.include) ? b.include : [],
       exclude: Array.isArray(b.exclude) ? b.exclude : [],
+      sayPath: b.sayPath ?? true,
     },
   };
+}
+
+/** Transport flags as the app writes them: LAN+BT+Aware. */
+function describeTransports(flags) {
+  const names = [];
+  if (flags & Transports.LAN) names.push("LAN");
+  if (flags & Transports.BT) names.push("BT");
+  if (flags & Transports.AWARE) names.push("Aware");
+  return names.join("+");
 }
 
 function dataDir(app) {
@@ -324,6 +365,7 @@ function schema(app) {
         properties: {
           enabled: { type: "boolean", title: "Enabled", default: true },
           minState: { type: "string", title: "Announce from state", enum: ["alert", "warn", "alarm", "emergency"], default: "alarm" },
+          sayPath: { type: "boolean", title: "Say the state and the path first", default: true, description: "\"Alarm, navigation position: no contact with sensor for 70 seconds\" rather than the message alone, so the crew hears where it comes from." },
           soundOnly: { type: "boolean", title: "Only notifications that ask for sound", default: true, description: "A notification's method lists visual and/or sound; off announces everything at or above the state." },
           repeatSec: { type: "integer", title: "Repeat every (s), 0 = once", default: 30, minimum: 0, maximum: 3600 },
           urgentStates: { type: "array", title: "Urgent states", items: { type: "string", enum: ["alert", "warn", "alarm", "emergency"] }, default: ["emergency"], description: "Said first, interrupting a normal announcement, with the urgent chime." },

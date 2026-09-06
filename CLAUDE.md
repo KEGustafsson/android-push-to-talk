@@ -153,7 +153,7 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   `start()` completes with schema defaults and without `setPluginError` (so a missing channel key is
   a status, not an error), a schema, own tests that pass within 60 s, a clean `npm audit`, a
   `CHANGELOG.md` in the tarball and `signalk.screenshots` in package.json. The admin UI pictures
-  (`plugin-config.png`, `data-browser.png`) are real captures of a scratch signalk-server with the
+  (`plugin-config.png`, `data-browser.png`, `webapp.png`) are real captures of a scratch signalk-server with the
   plugin installed (recipe: `sk-plugin/docs/capture_admin_ui.md`; a headless Edge driven over the
   DevTools protocol, since its `--screenshot` flag is unreliable on Windows); the two illustrations
   and the icon are drawn by `docs/make_screenshots.py` (draw.io export, like the app's docs).
@@ -170,7 +170,11 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   `POST /plugins/signalk-crewradio/say` (`registerWithRouter`; the body may be JSON or plain
   text, read by hand when the server has not parsed it) and the PropertyValue
   `signalk-crewradio.api` (`{version: 1, say}`), and publishes `communication.crewradio.speaking`.
-  `lib/bridge.js` announces notifications through the same say(). signalk-wyoming was tried first
+  `lib/bridge.js` announces notifications through the same say(), state and path first
+  (`spoken()`: "Alarm, navigation position: ...", setting `sayPath`). `public/index.html` is the
+  web page (keyword `signalk-webapp`, served at `/signalk-crewradio/`): plain HTML and JS, polls
+  `GET /plugins/signalk-crewradio/status` (`statusNow()`) once a second and posts test calls to
+  `/say`; `webapp.png` is a real capture of it, like the admin UI pictures. signalk-wyoming was tried first
   (a Wyoming satellite) and dropped on 2026-09-06: containers and a separate TTS service for one
   sentence; do not bring it back.
 - Delivery (`lib/node.js`, `lib/lan.js`): frames leave 100 ms ahead of real time on a

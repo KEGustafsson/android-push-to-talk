@@ -20,6 +20,11 @@ First release.
 - Notification bridge: Signal K notifications at or above a chosen state that ask for sound are
   announced, urgent for `emergency`, repeated until they clear; include and exclude globs.
 - The roster in Signal K: `communication.crewradio.online`, `.nodes`, `.talking`, `.speaking`.
+- A web page (Webapps › Crew Radio): the network link, who is on the channel and talking, the
+  queue, and a test call that says a text on the channel, normal or urgent.
+- A notification is said with its state and path first ("Alarm, navigation position: no contact
+  with sensor for 70 seconds"), so the crew hears where it comes from; setting `Say the state and
+  the path first`. Long decimals are rounded to one place before they are spoken.
 - `tools/cli.js` for testing from any machine on the boat network without Signal K.
 - Delivery: frames go out 100 ms ahead of real time, and each one is also sent unicast to every
   phone heard from directly, because access points drop a few percent of multicast even in the

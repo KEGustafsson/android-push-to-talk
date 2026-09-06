@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crew Radio</title>
+<style>
+  :root { color-scheme: dark; --bg: #0b0f14; --panel: #131a22; --line: #24303c; --text: #e6edf3; --muted: #8b98a5; --accent: #4dd0e1; --ok: #3fb950; --warn: #f0b429; --bad: #f85149; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+  h1 { font-size: 22px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0; }
+  header .name { color: var(--muted); }
+  #status { color: var(--muted); min-height: 1.4em; margin-bottom: 14px; }
+  #status.bad { color: var(--bad); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .tile .v { font-size: 24px; font-weight: 600; line-height: 1.2; }
+  .tile .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+  .tile.on .v { color: var(--ok); } .tile.off .v { color: var(--bad); } .tile.busy .v { color: var(--warn); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+  h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  tr:last-child td { border-bottom: 0; }
+  .talking { color: var(--ok); font-weight: 600; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: middle; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .empty { color: var(--muted); }
+  form { display: grid; gap: 10px; }
+  textarea, select, input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .row > * { flex: 1 1 160px; }
+  button { background: var(--accent); color: #062026; border: 0; border-radius: 999px; padding: 11px 20px; font: inherit; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #result { color: var(--muted); min-height: 1.4em; }
+  #result.ok { color: var(--ok); } #result.bad { color: var(--bad); }
+  .stats { color: var(--muted); font-size: 13px; }
+  .stats b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Crew Radio</h1><span class="name" id="name"></span></header>
+  <div id="status">Connecting to the plugin...</div>
+
+  <div class="tiles">
+    <div class="tile" id="t-link"><div class="v">-</div><div class="k">Network link</div></div>
+    <div class="tile" id="t-online"><div class="v">-</div><div class="k">Phones online</div></div>
+    <div class="tile" id="t-talking"><div class="v">-</div><div class="k">Talking</div></div>
+    <div class="tile" id="t-speaking"><div class="v">-</div><div class="k">Announcing</div></div>
+    <div class="tile" id="t-queue"><div class="v">-</div><div class="k">Waiting</div></div>
+  </div>
+
+  <section>
+    <h2>Test call</h2>
+    <form id="say">
+      <textarea id="text" maxlength="500" placeholder="What the boat should say">Test call from the Signal K server. If you hear this, the boat can talk to you.</textarea>
+      <div class="row">
+        <select id="priority"><option value="normal">Normal: waits its turn</option><option value="urgent">Urgent: goes first, cuts a normal one short</option></select>
+        <button type="submit" id="send">Say on the channel</button>
+      </div>
+      <div id="result"></div>
+    </form>
+  </section>
+
+  <section>
+    <h2>On the channel</h2>
+    <table><thead><tr><th>Name</th><th>Transports</th><th>Hops</th><th>Heard</th></tr></thead><tbody id="roster"><tr><td class="empty" colspan="4">Nobody yet.</td></tr></tbody></table>
+  </section>
+
+  <section>
+    <h2>Server node</h2>
+    <div class="stats" id="stats"></div>
+  </section>
+</main>
+<script>
+(function () {
+  var BASE = "/plugins/signalk-crewradio";
+  var $ = function (id) { return document.getElementById(id); };
+  var tile = function (id, value, cls) { var t = $(id); t.querySelector(".v").textContent = value; t.className = "tile" + (cls ? " " + cls : ""); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var failures = 0;
+
+  function render(s) {
+    $("name").textContent = s.name ? "on the channel as " + s.name : "";
+    var line = $("status"); line.className = "";
+    if (!s.running) { line.textContent = s.channelKey ? "The plugin is stopped." : "No channel key yet: set the same key as on the phones under Server > Plugin Config > Crew Radio."; line.className = "bad"; }
+    else line.textContent = s.statusLine || "";
+    var link = s.link;
+    tile("t-link", link ? "up" : "down", link ? "on" : "off");
+    $("t-link").querySelector(".k").textContent = link ? link.iface + " " + link.address : "Network link";
+    tile("t-online", s.roster.length, s.roster.length ? "on" : "");
+    var talking = s.roster.filter(function (n) { return n.talking; }).map(function (n) { return n.name; });
+    tile("t-talking", talking.length ? talking.join(", ") : "nobody", talking.length ? "on" : "");
+    tile("t-speaking", s.speaking ? "yes" : "no", s.speaking ? "busy" : "");
+    tile("t-queue", s.queued, s.queued ? "busy" : "");
+    var rows = s.roster.map(function (n) {
+      return "<tr" + (n.talking ? ' class="talking"' : "") + "><td>" + (n.talking ? '<span class="dot"></span>' : "") + esc(n.name) + "</td><td>" + esc(n.transports || "-") + "</td><td>" + (n.hops === 0 ? "direct" : n.hops) + "</td><td>" + (n.ageMs < 1500 ? "now" : Math.round(n.ageMs / 1000) + " s ago") + "</td></tr>";
+    });
+    $("roster").innerHTML = rows.length ? rows.join("") : '<tr><td class="empty" colspan="4">Nobody on the channel. A phone shows up here when the app is connected with its WLAN link on, on the same network, group, port and channel key.</td></tr>';
+    var st = s.stats || {};
+    $("stats").innerHTML = "voice <b>" + esc(s.voice || "-") + "</b> &middot; rate <b>" + esc(s.rate) + "</b> &middot; group <b>" + esc(s.group + ":" + s.port) + "</b> &middot; hop budget <b>" + esc(s.hops) + "</b><br>" +
+      "packets received <b>" + (st.rx || 0) + "</b> &middot; sent <b>" + (st.tx || 0) + "</b> &middot; rejected <b>" + (st.rejected || 0) + "</b> &middot; sentences made <b>" + (st.synthesized || 0) + "</b> &middot; from the cache <b>" + (st.cached || 0) + "</b> &middot; plugin up <b>" + Math.round(s.uptimeSec / 60) + " min</b>";
+    $("send").disabled = !s.running;
+  }
+
+  function poll() {
+    fetch(BASE + "/status", { credentials: "same-origin" }).then(function (r) {
+      if (r.status === 401 || r.status === 403) throw new Error("Log in to the Signal K admin UI first, then reload this page.");
+      if (!r.ok) throw new Error("The plugin answered " + r.status + ". Is it enabled?");
+      return r.json();
+    }).then(function (s) { failures = 0; render(s); }).catch(function (e) {
+      if (++failures >= 2) { var line = $("status"); line.textContent = e.message; line.className = "bad"; }
+    });
+  }
+
+  $("say").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var res = $("result"); res.className = ""; res.textContent = "Sending...";
+    $("send").disabled = true;
+    fetch(BASE + "/say", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: $("text").value, priority: $("priority").value }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (x) {
+        if (x.ok && x.j.ok) { res.className = "ok"; res.textContent = (x.j.queued === 0 ? "Going out now" : "Queued at position " + x.j.queued) + ", " + x.j.seconds + " s of speech" + (x.j.priority === "urgent" ? ", urgent" : ""); }
+        else { res.className = "bad"; res.textContent = x.j.error || x.j.message || ("The server answered " + x.j.statusCode); }
+      })
+      .catch(function (e) { res.className = "bad"; res.textContent = e.message; })
+      .then(function () { $("send").disabled = false; poll(); });
+  });
+  poll(); setInterval(poll, 1000);
+})();
+</script>
+</body>
+</html>

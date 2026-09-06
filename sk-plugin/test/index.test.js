@@ -210,7 +210,7 @@ test("the notification bridge speaks through say(): urgent for an emergency, not
   assert.equal(app.subs[0].sub.subscribe[0].path, "notifications.*");
   app.subs[0].cb({ updates: [{ values: [{ path: "notifications.mob", value: { state: "emergency", method: ["sound", "visual"], message: "Man overboard" } }] }] });
   await until(() => FakeTts.last.texts.length === 1);
-  assert.deepEqual(FakeTts.last.texts, ["Man overboard"]);
+  assert.deepEqual(FakeTts.last.texts, ["Emergency, mob: Man overboard"]);
   await until(() => app.log.some((m) => /say \(urgent/.test(m)));
   app.subs[0].cb({ updates: [{ values: [{ path: "notifications.navigation.depth", value: { state: "warn", method: ["sound"], message: "shallow" } }] }] });
   await flush();
@@ -270,4 +270,35 @@ test("an unknown voice in the settings falls back to the default, and a failing 
   p2.start({ channelKey: KEY });
   assert.match(app2.errors[0], /Speech: no wasm here/);
   p2.stop();
+});
+
+test("GET /status carries what the web page shows, and the page is shipped", async () => {
+  FakeLink.last = undefined;
+  const app = fakeApp();
+  const p = plugin(app, deps);
+  const router = fakeRouter();
+  p.registerWithRouter(router);
+  let res = fakeRes();
+  router.routes["GET /status"]({}, res);
+  assert.equal(res.body.running, false, "before start");
+  p.start({ channelKey: KEY, nodeName: "Sirius" });
+  await until(() => FakeLink.last && FakeLink.last.sent.length > 0);
+  const phoneHeader = P.encodeHeader({ senderId: 42, seq: 0, codec: P.Codec.HELLO, ttl: 4 });
+  const hello = P.encodeHello({ name: "Skipper", transports: P.Transports.LAN | P.Transports.BT, ttl: 4 });
+  FakeLink.last.emit("packet", Buffer.concat([phoneHeader, crypto.seal(P.aadOf(phoneHeader), hello)]), { address: "10.0.0.7", port: 47474 });
+  await flush();
+  res = fakeRes();
+  router.routes["GET /status"]({}, res);
+  const s = res.body;
+  assert.equal(s.running, true);
+  assert.equal(s.name, "Sirius");
+  assert.deepEqual(s.link, { iface: "fake0", address: "10.0.0.2" });
+  assert.equal(s.voice, "slt");
+  assert.deepEqual(s.roster.map((n) => [n.name, n.transports, n.hops]), [["Skipper", "LAN+BT", 0]]);
+  assert.equal(s.stats.rx, 1);
+  assert.equal(s.queued, 0);
+  p.stop();
+  const page = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "public", "index.html"), "utf8");
+  assert.ok(page.includes('"/plugins/signalk-crewradio"') && page.includes('"/status"') && page.includes('"/say"'), "the page talks to the plugin routes");
+  assert.ok(require("../package.json").keywords.includes("signalk-webapp"), "served at /signalk-crewradio/");
 });
