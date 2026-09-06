@@ -52,7 +52,9 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   payload is AES-256-GCM under the channel key (`ChannelCrypto`, key by PBKDF2, random nonce per
   packet, the header with the ttl byte zeroed as AAD). `hops` is the sender's original budget,
   authenticated: a relay clamps ttl to min(ttl, hops, own limit). The engine charges the global
-  rate budget, opens the packet, then charges the sender's budget and goes on to the seen-cache;
+  rate budget, opens the packet, drops a duplicate by the seen-cache, and only then charges the
+  sender's budget (every frame arrives twice on WLAN, multicast and broadcast, and again over each
+  other link; charging the copies exhausted a talker's 75/s budget after ~6 s, audible as voids);
   anything that fails is `rejected`. `Prefs.channelKey` is generated at
   random on first use (no default) and doubles as the Aware passphrase; `docs/SECURITY.md` has the
   threat model.
@@ -96,6 +98,14 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   the Telecom call); `onHeadsetChanged` fires when the route in use changes and `syncMonitor` then
   restarts the voice monitor when its mic (headset vs phone: different gate tuning and proximity
   arming) no longer matches.
+- WLAN delivery, measured 2026-09-06 with the Signal K plugin as talker and the Status screen's
+  counters: (1) the per-sender rate budget must be charged after the seen-cache, or the two WLAN
+  copies of every frame spend it in ~6 s (fixed); (2) an access point delivers multicast and
+  broadcast at its lowest rate, unacknowledged, and a phone in the same cabin loses a few percent,
+  audible as voids; unicast copies to each known peer fix it (the plugin does this; the app's
+  LanTransport could learn peers' addresses from hellos and do the same); (3) a sender whose timer
+  ticks at 15.6 ms (Node on Windows) needs a ~100 ms lead or the mixer, which drains after 40 ms
+  of buffer, runs dry and conceals.
 - Bluetooth headsets: measured on a Jabra Evolve2 65 + S25. With SCO up and no call, a tap is
   an AVRCP PLAY that reaches our `MediaSession` (good); the headset sometimes sends AT+CHUP
   (hang-up) instead, and with no call to hang up Android drops the SCO link and does not

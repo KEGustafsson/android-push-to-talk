@@ -531,10 +531,15 @@ class PttEngine(
         // Authenticate before anything else: a packet without the crew's key must not reach the
         // seen-cache (a forged sender+number would shadow the real packet), the relay, the roster,
         // nor the sender's own rate budget (a forged sender id would starve the real one).
+        // The order after that is dedupe, then the sender's budget: see below.
         val cr = crypto ?: return
         val plain = cr.open(Packet.aadOf(p), p, Packet.HEADER, p.size - Packet.HEADER) ?: run { c.rejected.incrementAndGet(); return }
-        if (!rateLimiter.allowSender(h.senderId, now)) { c.rejected.incrementAndGet(); return }
+        // Drop duplicates before charging the sender: every frame arrives twice on WLAN (multicast
+        // and broadcast) and again over every other link, so charging each copy would spend a
+        // 75/s budget on 100+ copies/s and, once the burst is gone, refuse real frames too. Only
+        // authenticated packets get here, so a forgery cannot occupy a (sender, seq) slot.
         if (!markSeen(h.senderId, h.seq, h.codec)) { c.duplicates.incrementAndGet(); return }   // duplicate via another path
+        if (!rateLimiter.allowSender(h.senderId, now)) { c.rejected.incrementAndGet(); return }
         c.rxPackets.incrementAndGet()
         c.rxBytes.addAndGet(p.size.toLong())
 
