@@ -7,7 +7,7 @@ name: SignalK Plugin CI
 # shows this matrix for the published version, which is why the canonical `@master` reference
 # is used here rather than a pinned commit: that is what the registry looks for.
 #
-# armv7 (Cerbo GX, Node 20) is off: the plugin needs Node 24, as signalk-wyoming does.
+# armv7 (Cerbo GX, Node 20) is off: the plugin declares Node >=24 in package.json (engines).
 
 on:
   push:

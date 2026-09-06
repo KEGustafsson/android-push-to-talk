@@ -24,3 +24,6 @@ keystore.properties
 # Signal K plugin (sk-plugin/) has no dependencies; anything installed for experiments stays local
 sk-plugin/node_modules/
 sk-plugin/coverage/
+# The Signal K plugin-ci enables its npm cache when any lockfile exists and then looks for it
+# at the repository root, so a lockfile in sk-plugin/ fails every job.
+sk-plugin/package-lock.json

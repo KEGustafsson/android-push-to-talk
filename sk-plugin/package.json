@@ -16,32 +16,31 @@
   },
   "keywords": [
     "signalk-node-server-plugin",
+    "signalk-webapp",
     "signalk-category-notifications",
     "crew-radio",
     "push-to-talk",
-    "wyoming",
-    "signalk-wyoming"
+    "text-to-speech",
+    "intercom"
   ],
   "engines": {
     "node": ">=24"
   },
   "signalk": {
     "displayName": "Crew Radio",
-    "appIcon": "./docs/icon.png",
+    "appIcon": "./icon.png",
     "screenshots": [
-      "./docs/screenshots/plugin-config.png",
-      "./docs/screenshots/announcement.png",
-      "./docs/screenshots/data-browser.png",
-      "./docs/screenshots/how-it-fits.png"
-    ],
-    "recommends": [
-      "signalk-wyoming",
-      "signalk-piper"
+      "./screenshots/plugin-config.png",
+      "./screenshots/webapp.png",
+      "./screenshots/announcement.png",
+      "./screenshots/data-browser.png",
+      "./screenshots/how-it-fits.png"
     ]
   },
   "files": [
     "index.js",
     "lib/",
+    "public/",
     "tools/",
     "docs/",
     "README.md",
@@ -51,5 +50,8 @@
   "scripts": {
     "test": "node --test",
     "coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"tools/**\" --test-coverage-lines=80 --test-coverage-branches=75 --test-coverage-functions=80"
+  },
+  "dependencies": {
+    "@echogarden/flite-wasi": "0.1.1"
   }
 }

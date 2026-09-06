@@ -1,6 +1,6 @@
 # Capturing the admin UI pictures
 
-`plugin-config.png` and `data-browser.png` are real screenshots of a Signal K server with the
+`plugin-config.png`, `data-browser.png` and `webapp.png` (in `public/screenshots/`, where the server's webapp mount and the App Store can reach them) are real screenshots of a Signal K server with the
 plugin installed, not drawings. To take them again after a change, on a machine with Node 24:
 
 1. A scratch server, apart from any real installation:
@@ -17,10 +17,11 @@ plugin installed, not drawings. To take them again after a change, on a machine 
 3. Give it something to show: two channel nodes,
    `node tools/cli.js roster --key KEY --name Skipper --seconds 90` and the same with `--name Mate`
    (KEY as in the plugin's config; `--iface` if the machine has several adapters), and
-   `node tools/cli.js send --to 127.0.0.1:10701 --wav clip.wav` so the status line reads
-   "assistant connected · announcing" while the picture is taken.
+   `curl -X POST http://localhost:3000/plugins/signalk-crewradio/say -H 'Content-Type: application/json' -d '{"text":"..."}'`
+   so the status line reads "announcing" while the picture is taken.
 4. Capture at 1280 x 800 with a headless Chromium browser over the DevTools protocol (the
    `--screenshot` flag proved unreliable on Windows):
+   `http://localhost:3000/signalk-crewradio/` (the web page, while the announcement plays),
    `http://localhost:3000/admin/#/serverConfiguration/plugins/signalk-crewradio` and
    `http://localhost:3000/admin/#/databrowser`, waiting a few seconds after navigation for the
    React app to fetch its data.

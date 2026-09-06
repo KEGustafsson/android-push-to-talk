@@ -3,11 +3,9 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const net = require("node:net");
 const { EventEmitter } = require("node:events");
 const plugin = require("../index");
 const { ChannelCrypto } = require("../lib/crypto");
-const { encodeEvent, EventDecoder } = require("../lib/wyoming");
 const P = require("../lib/packet");
 
 const KEY = "north-star-2026";
@@ -30,17 +28,30 @@ class FakeLink extends EventEmitter {
   close() { this.closed = true; }
 }
 
+/** A fake speech engine: 100 ms of a tone per call, instantly; records what it was asked. */
+class FakeTts {
+  constructor(opts) { this.opts = opts; this.texts = []; FakeTts.last = this; }
+  synthesize(text) {
+    this.texts.push(text);
+    const pcm = Buffer.alloc(3200);
+    for (let i = 0; i < 1600; i++) pcm.writeInt16LE(Math.round(6000 * Math.sin(i / 3)), i * 2);
+    return Promise.resolve(pcm);
+  }
+}
+
 /** The subset of the Signal K plugin API the plugin uses, with everything recorded. */
 function fakeApp() {
   const app = {
-    log: [], errors: [], status: [], deltas: [], props: {}, subs: [], puts: [],
+    log: [], errors: [], status: [], deltas: [], props: {}, subs: [], puts: {},
     debug: (m) => app.log.push(m),
     error: (m) => app.errors.push(m),
     setPluginStatus: (m) => app.status.push(m),
     setPluginError: (m) => app.errors.push(`plugin error: ${m}`),
     handleMessage: (id, delta) => app.deltas.push({ id, delta }),
     getSelfPath: (p) => (p === "name" ? "Sirius" : undefined),
-    onPropertyValues: (name, cb) => { app.props[name] = cb; return () => { delete app.props[name]; }; },
+    getDataDirPath: () => require("node:os").tmpdir(),
+    emitPropertyValue: (name, value) => { app.props[name] = value; },
+    registerPutHandler: (context, path, handler) => { app.puts[path] = handler; },
     subscriptionmanager: { subscribe: (sub, unsubs, onErr, cb) => { app.subs.push({ sub, cb }); unsubs.push(() => app.subs.pop()); } },
   };
   return app;
@@ -48,6 +59,7 @@ function fakeApp() {
 
 const flush = (n = 3) => new Promise((r) => { let i = 0; const step = () => (++i >= n ? r() : setImmediate(step)); setImmediate(step); });
 const until = async (cond, ms = 3000) => { const t0 = Date.now(); while (!cond()) { if (Date.now() - t0 > ms) throw new Error("timeout"); await new Promise((r) => setTimeout(r, 5)); } };
+const deps = { LanLink: FakeLink, Tts: FakeTts };
 
 function lastValue(app, path) {
   for (let i = app.deltas.length - 1; i >= 0; i--) {
@@ -56,20 +68,31 @@ function lastValue(app, path) {
   return undefined;
 }
 
-test("metadata: id, schema with the key required, password widget, vessel name as the default", () => {
+/** A fake Express router capturing the routes the plugin registers. */
+function fakeRouter() {
+  const routes = {};
+  return { routes, post: (p, h) => { routes[`POST ${p}`] = h; }, get: (p, h) => { routes[`GET ${p}`] = h; } };
+}
+function fakeRes() {
+  const res = { code: 200, body: null, status(c) { res.code = c; return res; }, json(b) { res.body = b; res.done?.(); return res; } };
+  res.finished = new Promise((r) => (res.done = r));
+  return res;
+}
+
+test("metadata: id, schema with the key required, the voices, password widget, vessel name as the default", () => {
   const app = fakeApp();
   const p = plugin(app);
   assert.equal(p.id, "signalk-crewradio");
   const schema = p.schema();
   assert.deepEqual(schema.required, ["channelKey"]);
+  assert.deepEqual(schema.properties.voice.enum, ["slt", "kal16", "rms", "awb"]);
   assert.match(schema.properties.nodeName.description, /Sirius/);
-  assert.equal(schema.properties.satelliteHost.default, "127.0.0.1");
   assert.equal(p.uiSchema().channelKey["ui:widget"], "password");
 });
 
 test("without a channel key the plugin waits, says so in its status, and does nothing else", () => {
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
+  const p = plugin(app, deps);
   p.start({});
   assert.match(app.status[0], /Waiting for the channel key/);
   assert.deepEqual(app.errors, []);
@@ -83,9 +106,8 @@ test("without a channel key the plugin waits, says so in its status, and does no
 test("on start it joins the channel, sends hellos, publishes the roster and reports status; stop tears down", async () => {
   FakeLink.last = undefined;
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
-  p.start({ channelKey: KEY, satellitePort: 0, hops: 3 });
-  await p.satelliteListening;
+  const p = plugin(app, deps);
+  p.start({ channelKey: KEY, hops: 3 });
   await until(() => FakeLink.last && FakeLink.last.sent.length > 0);
   const link = FakeLink.last;
   assert.deepEqual(link.opts, { group: "239.255.42.1", port: 47474, iface: "auto" });
@@ -96,12 +118,11 @@ test("on start it joins the channel, sends hellos, publishes the roster and repo
   assert.equal(hello.name, "Sirius");
   assert.equal(lastValue(app, "communication.crewradio.online"), 0);
   assert.match(app.status.at(-1), /0 online/);
-  assert.match(app.status.at(-1), /assistant not connected/);
+  assert.match(app.status.at(-1), /voice slt/);
 
-  // a phone's hello arrives: roster and status follow
   const phoneHeader = P.encodeHeader({ senderId: 42, seq: 0, codec: P.Codec.HELLO, ttl: 4 });
   const phone = Buffer.concat([phoneHeader, crypto.seal(P.aadOf(phoneHeader), P.encodeHello({ name: "Anna", transports: 3, ttl: 4 }))]);
-  link.emit("packet", phone, {});
+  link.emit("packet", phone, { address: "10.0.0.7" });
   await flush();
   assert.equal(lastValue(app, "communication.crewradio.online"), 1);
   assert.deepEqual(lastValue(app, "communication.crewradio.nodes"), [{ name: "Anna", hops: 0, transports: 3, talking: false }]);
@@ -111,91 +132,122 @@ test("on start it joins the channel, sends hellos, publishes the roster and repo
   assert.equal(link.closed, true);
   assert.equal(app.status.at(-1), "Stopped");
   assert.equal(lastValue(app, "communication.crewradio.online"), 0);
+  assert.equal(app.props["signalk-crewradio.api"], null, "the in-process api is withdrawn");
 });
 
-test("an announcement from the orchestrator is resampled, chimed, keyed on the channel and acknowledged", async () => {
+test("say() through the in-process api: chime, speech, tail as paced frames on the channel; the speaking path follows", async () => {
   FakeLink.last = undefined;
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
-  p.start({ channelKey: KEY, satellitePort: 0, waitForSilenceMs: 0, nodeName: "Boat" });
-  const addr = await p.satelliteListening;
+  const p = plugin(app, deps);
+  p.start({ channelKey: KEY, waitForSilenceMs: 0, nodeName: "Boat" });
   await until(() => FakeLink.last);
-  const link = FakeLink.last;
-
-  const sock = net.connect(addr.port, "127.0.0.1");
-  await new Promise((r) => sock.once("connect", r));
-  const dec = new EventDecoder();
-  const got = [];
-  sock.on("data", (b) => got.push(...dec.feed(b)));
-  await until(() => app.status.some((s) => /assistant connected/.test(s)));
-  sock.write(encodeEvent("describe"));
-  await until(() => got.some((e) => e.type === "info"));
-  assert.equal(got.find((e) => e.type === "info").data.satellite.name, "Boat");
-
-  // 200 ms of a 1 kHz tone at 22 050 Hz, stereo
-  const rate = 22050, n = rate / 5;
-  const pcm = Buffer.alloc(n * 2 * 2);
-  for (let i = 0; i < n; i++) { const v = Math.round(8000 * Math.sin((2 * Math.PI * 1000 * i) / rate)); pcm.writeInt16LE(v, i * 4); pcm.writeInt16LE(v, i * 4 + 2); }
-  const fmt = { rate, width: 2, channels: 2 };
-  sock.write(encodeEvent("audio-start", fmt));
-  sock.write(encodeEvent("audio-chunk", fmt, pcm));
-  sock.write(encodeEvent("audio-stop"));
-  await until(() => got.some((e) => e.type === "played"), 10000);
-
-  const frames = link.sent.map((b) => P.parseHeader(b)).filter((h) => h.codec === P.Codec.PCM);
-  // chime (~460 ms) + 200 ms tone + 150 ms tail, in 20 ms frames
-  assert.ok(frames.length >= 38 && frames.length <= 44, `${frames.length} frames`);
+  const api = app.props["signalk-crewradio.api"];
+  assert.equal(api.version, 1);
+  const r = await api.say({ text: "Depth 2.5 m" });
+  assert.equal(r.ok, true);
+  assert.equal(r.queued, 0);
+  assert.equal(r.priority, "normal");
+  assert.deepEqual(FakeTts.last.texts, ["Depth 2.5 m"]);
+  await until(() => lastValue(app, "communication.crewradio.speaking") === false && FakeLink.last.sent.length > 30, 5000);
+  const frames = FakeLink.last.sent.map((b) => P.parseHeader(b)).filter((h) => h.codec === P.Codec.PCM);
+  // chime (~460 ms) + 100 ms tone + 150 ms tail, in 20 ms frames
+  assert.ok(frames.length >= 33 && frames.length <= 38, `${frames.length} frames`);
   assert.deepEqual(frames.map((h) => h.seq), frames.map((_, i) => i));
   assert.ok(app.status.some((s) => /announcing/.test(s)));
-  sock.destroy();
+  await assert.rejects(api.say({ text: "" }), /text is required/);
+  await assert.rejects(api.say({ text: "x".repeat(501) }), /over 500/);
+  p.stop();
+  await assert.rejects(api.say({ text: "late" }), /not running/);
+});
+
+test("say() through PUT and REST, plain text or {text, priority}; urgent goes first", async () => {
+  FakeLink.last = undefined;
+  const app = fakeApp();
+  const p = plugin(app, deps);
+  p.start({ channelKey: KEY, waitForSilenceMs: 0 });
+  await until(() => FakeLink.last);
+  const put = app.puts["communication.crewradio.say"];
+  assert.equal(typeof put, "function");
+  const results = [];
+  const pending = put("vessels.self", "communication.crewradio.say", "Hello crew", (r) => results.push(r));
+  assert.equal(pending.state, "PENDING");
+  await until(() => results.length === 1);
+  assert.equal(results[0].statusCode, 200);
+  assert.equal(JSON.parse(results[0].message).ok, true);
+  put("vessels.self", "communication.crewradio.say", { text: "" }, (r) => results.push(r));
+  await until(() => results.length === 2);
+  assert.equal(results[1].statusCode, 400);
+
+  const router = fakeRouter();
+  p.registerWithRouter(router);
+  const res1 = fakeRes();
+  router.routes["POST /say"]({ body: { text: "Man overboard", priority: "urgent" } }, res1);
+  await res1.finished;
+  assert.equal(res1.code, 200);
+  assert.equal(res1.body.priority, "urgent");
+  assert.equal(res1.body.queued, 0, "urgent: ahead of what waits");
+  const res2 = fakeRes();
+  const req = new EventEmitter(); req.setEncoding = () => {}; req.destroy = () => {};
+  router.routes["POST /say"](req, res2);
+  req.emit("data", "Plain text body"); req.emit("end");
+  await res2.finished;
+  assert.equal(res2.code, 200);
+  assert.ok(FakeTts.last.texts.includes("Plain text body"));
+  const res3 = fakeRes();
+  router.routes["GET /say"]({}, res3);
+  assert.deepEqual(res3.body.voices, ["slt", "kal16", "rms", "awb"]);
+  assert.equal(res3.body.voice, "slt");
   p.stop();
 });
 
-test("the notification bridge speaks through signalk-wyoming's say(), urgent for an emergency, to the crewradio target", async () => {
+test("the notification bridge speaks through say(): urgent for an emergency, nothing below the threshold", async () => {
   FakeLink.last = undefined;
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
-  p.start({ channelKey: KEY, satellitePort: 0, bridge: { repeatSec: 0 } });
-  await p.satelliteListening;
+  const p = plugin(app, deps);
+  p.start({ channelKey: KEY, waitForSilenceMs: 0, bridge: { repeatSec: 0 } });
+  await until(() => FakeLink.last);
   assert.equal(app.subs.length, 1);
   assert.equal(app.subs[0].sub.subscribe[0].path, "notifications.*");
-  const said = [];
-  app.props["signalk-wyoming.api"]([{ value: { version: 1, say: async (o) => { said.push(o); return { ok: true, queued: ["crewradio"] }; } } }]);
-  await flush();
-  assert.ok(!/say\(\) unavailable/.test(app.status.at(-1)));
   app.subs[0].cb({ updates: [{ values: [{ path: "notifications.mob", value: { state: "emergency", method: ["sound", "visual"], message: "Man overboard" } }] }] });
-  await flush();
-  assert.deepEqual(said, [{ text: "Man overboard", priority: "urgent", targets: ["crewradio"] }]);
+  await until(() => FakeTts.last.texts.length === 1);
+  assert.deepEqual(FakeTts.last.texts, ["Emergency, mob: Man overboard"]);
+  await until(() => app.log.some((m) => /say \(urgent/.test(m)));
   app.subs[0].cb({ updates: [{ values: [{ path: "notifications.navigation.depth", value: { state: "warn", method: ["sound"], message: "shallow" } }] }] });
   await flush();
-  assert.equal(said.length, 1, "warn is below the default alarm threshold");
+  assert.equal(FakeTts.last.texts.length, 1, "warn is below the default alarm threshold");
   p.stop();
   assert.equal(app.subs.length, 0, "unsubscribed");
 });
 
-test("a network link that cannot open is reported and retried; the satellite still runs", async () => {
+test("a network link that cannot open is reported and retried; say() still queues", async () => {
   FakeLink.last = undefined;
   FakeLink.failOpen = true;
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
+  const p = plugin(app, deps);
   try {
-    p.start({ channelKey: KEY, satellitePort: 0 });
-    await p.satelliteListening;
+    p.start({ channelKey: KEY });
     await flush();
     assert.match(app.errors.at(-1), /no usable IPv4 interface/);
-    assert.match(app.status.at(-1) ?? "", /network link down|assistant/);
+    assert.match(app.status.at(-1), /network link down/);
+    const r = await app.props["signalk-crewradio.api"].say({ text: "hello" });
+    assert.equal(r.ok, true, "queued; it plays once the link is back");
+    assert.match(app.status.at(-1), /network link down · 1 waiting/, "the announcement is held at the head of the queue");
+    FakeLink.failOpen = false;                       // the retry (1 s backoff) now succeeds
+    const audioOn = (link) => link.sent.filter((b) => P.parseHeader(b).codec === P.Codec.PCM);
+    // frames leave every 20 ms: wait for a handful, not just the first, so a slow runner passes too
+    await until(() => FakeLink.last && !FakeLink.last.closed && audioOn(FakeLink.last).length >= 5, 5000);
+    assert.equal(FakeLink.last.closed, false, "the queued announcement went out as PCM frames on the reconnected link");
   } finally {
     FakeLink.failOpen = false;
     p.stop();
   }
 });
 
-test("a link that dies after start reports it in the status at once and clears the roster", async () => {
+test("a link that dies after start reports it in the status at once", async () => {
   FakeLink.last = undefined;
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
-  p.start({ channelKey: KEY, satellitePort: 0 });
-  await p.satelliteListening;
+  const p = plugin(app, deps);
+  p.start({ channelKey: KEY });
   await until(() => FakeLink.last && FakeLink.last.sent.length > 0);
   const link = FakeLink.last;
   link.emit("error", new Error("network is unreachable"));
@@ -205,25 +257,48 @@ test("a link that dies after start reports it in the status at once and clears t
   p.stop();
 });
 
-test("a non-loopback satellite bind without an allowlist falls back to loopback and says so", async () => {
-  FakeLink.last = undefined;
+test("an unknown voice in the settings falls back to the default, and a failing engine is a plugin error", () => {
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
-  p.start({ channelKey: KEY, satellitePort: 0, satelliteHost: "0.0.0.0" });
-  const addr = await p.satelliteListening;
-  assert.equal(addr.address, "127.0.0.1");
-  assert.ok(app.errors.some((e) => /needs an allowlist/.test(e)));
+  const p = plugin(app, deps);
+  p.start({ channelKey: KEY, voice: "nope" });
+  assert.equal(app.errors.length, 0);
+  assert.equal(FakeTts.last.opts.voice, "slt");
   p.stop();
+  class BrokenTts { constructor() { throw new Error("no wasm here"); } }
+  const app2 = fakeApp();
+  const p2 = plugin(app2, { LanLink: FakeLink, Tts: BrokenTts });
+  p2.start({ channelKey: KEY });
+  assert.match(app2.errors[0], /Speech: no wasm here/);
+  p2.stop();
 });
 
-test("a non-loopback satellite bind with an allowlist is honoured, and the list reaches the satellite", async () => {
+test("GET /status carries what the web page shows, and the page is shipped", async () => {
   FakeLink.last = undefined;
   const app = fakeApp();
-  const p = plugin(app, { LanLink: FakeLink });
-  p.start({ channelKey: KEY, satellitePort: 0, satelliteHost: "0.0.0.0", satelliteAllowFrom: ["10.10.10.0/24", " "] });
-  const addr = await p.satelliteListening;
-  assert.equal(addr.address, "0.0.0.0");
-  assert.deepEqual(app.errors, []);
-  assert.ok(app.log.some((m) => /clients limited to 10\.10\.10\.0\/24/.test(m)));
+  const p = plugin(app, deps);
+  const router = fakeRouter();
+  p.registerWithRouter(router);
+  let res = fakeRes();
+  router.routes["GET /status"]({}, res);
+  assert.equal(res.body.running, false, "before start");
+  p.start({ channelKey: KEY, nodeName: "Sirius" });
+  await until(() => FakeLink.last && FakeLink.last.sent.length > 0);
+  const phoneHeader = P.encodeHeader({ senderId: 42, seq: 0, codec: P.Codec.HELLO, ttl: 4 });
+  const hello = P.encodeHello({ name: "Skipper", transports: P.Transports.LAN | P.Transports.BT, ttl: 4 });
+  FakeLink.last.emit("packet", Buffer.concat([phoneHeader, crypto.seal(P.aadOf(phoneHeader), hello)]), { address: "10.0.0.7", port: 47474 });
+  await flush();
+  res = fakeRes();
+  router.routes["GET /status"]({}, res);
+  const s = res.body;
+  assert.equal(s.running, true);
+  assert.equal(s.name, "Sirius");
+  assert.deepEqual(s.link, { iface: "fake0", address: "10.0.0.2" });
+  assert.equal(s.voice, "slt");
+  assert.deepEqual(s.roster.map((n) => [n.name, n.transports, n.hops]), [["Skipper", "LAN+BT", 0]]);
+  assert.equal(s.stats.rx, 1);
+  assert.equal(s.queued, 0);
   p.stop();
+  const page = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "public", "index.html"), "utf8");
+  assert.ok(page.includes('"/plugins/signalk-crewradio"') && page.includes('"/status"') && page.includes('"/say"'), "the page talks to the plugin routes");
+  assert.ok(require("../package.json").keywords.includes("signalk-webapp"), "served at /signalk-crewradio/");
 });

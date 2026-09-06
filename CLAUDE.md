@@ -150,34 +150,55 @@ MainActivity -(bind)-> PttService -> PttEngine -> Transport (LanTransport | Blue
   data path (one link per pair). Publisher uses accept-any on API 31+.
 
 ## Signal K plugin (`sk-plugin/`)
-- `signalk-crewradio`: the boat's Signal K server as a node on the channel. Pure Node 24+, no
-  runtime dependencies, CommonJS, tests with `node --test` (`npm test`; `npm run coverage` enforces
-  80 % lines and functions, 75 % branches, excluding `tools/`). CI: `.github/workflows/signalk-ci.yml`
-  calls the Signal K project's reusable `plugin-ci.yml@master` with `working-directory: sk-plugin`
-  (that canonical reference is what the App Store's Indicators tab looks for, so it is not pinned to
-  a SHA). The App Store score (registry `test-harness/score.ts`) wants: installs with
-  `--ignore-scripts`, constructor returns an object, `start()` completes with schema defaults and
-  without `setPluginError` (so a missing channel key is a status, not an error), a schema, own tests
-  that pass within 60 s, a clean `npm audit`, a `CHANGELOG.md` in the tarball and
-  `signalk.screenshots` in package.json. The admin UI pictures (`plugin-config.png`,
-  `data-browser.png`) are real captures of a scratch signalk-server with the plugin installed
-  (recipe: `sk-plugin/docs/capture_admin_ui.md`; a headless Edge driven over the DevTools
-  protocol, since its `--screenshot` flag is unreliable on Windows); the two illustrations and
-  the icon are drawn by `docs/make_screenshots.py` (draw.io export, like the app's docs).
-  Never pass off a drawing as a screenshot of the admin UI. `lib/packet.js`,
-  `lib/crypto.js` and `lib/node.js` mirror `Packet.kt`, `ChannelCrypto.kt`, `Hello.kt` and the
-  engine's roster rules byte for byte; `sk-plugin/test/vector.json` and the app's
-  `CrossLanguageVectorTest` check the same packet, so change both when the wire changes.
-- It is a speaker-only Wyoming satellite for `signalk-wyoming` (`lib/wyoming.js`: describe/info,
-  ping/pong, pause-satellite, audio-start/chunk/stop, then `played`): signalk-wyoming does the
-  text-to-speech (Piper, 22 050 Hz) and the announcement queue with its `urgent` priority; the
-  plugin resamples to 16 kHz (`lib/resample.js`), prefixes a chime, waits for a gap in the talk
-  and keys the channel with PCM frames paced at 20 ms. `lib/bridge.js` announces Signal K
-  notifications through signalk-wyoming's in-process `say()` (PropertyValues
-  `signalk-wyoming.api`), urgent for `emergency`, repeated until cleared. Roster goes to
-  `communication.crewradio.*`.
+- `signalk-crewradio`: the boat's Signal K server as a node on the channel, with text-to-speech
+  inside the plugin. Node 24+, CommonJS, one dependency (`@echogarden/flite-wasi`: Flite compiled
+  to WebAssembly, English, four voices, 16 kHz output, run through `node:wasi`), tests with
+  `node --test` (`npm test`; `npm run coverage` enforces 80 % lines and functions, 75 % branches,
+  excluding `tools/`). CI: `.github/workflows/signalk-ci.yml` calls the Signal K project's reusable
+  `plugin-ci.yml@master` with `working-directory: sk-plugin` (that canonical reference is what the
+  App Store's Indicators tab looks for, so it is not pinned to a SHA). No lockfile in `sk-plugin/`:
+  the reusable workflow switches on setup-node's npm cache when any `package-lock.json` exists in
+  the checkout and then looks for it at the repository root, which fails every job (`.gitignore`). The App Store score (registry
+  `test-harness/score.ts`) wants: installs with `--ignore-scripts`, constructor returns an object,
+  `start()` completes with schema defaults and without `setPluginError` (so a missing channel key is
+  a status, not an error), a schema, own tests that pass within 60 s, a clean `npm audit`, a
+  `CHANGELOG.md` in the tarball and `signalk.screenshots` in package.json. The admin UI pictures
+  (`plugin-config.png`, `data-browser.png`, `webapp.png`) are real captures of a scratch signalk-server with the
+  plugin installed (recipe: `sk-plugin/docs/capture_admin_ui.md`; a headless Edge driven over the
+  DevTools protocol, since its `--screenshot` flag is unreliable on Windows); the two illustrations
+  and the icon are drawn by `docs/make_screenshots.py` (draw.io export, like the app's docs).
+  Never pass off a drawing as a screenshot of the admin UI. The icon and the pictures live under
+  `public/` (declared as `./icon.png`, `./screenshots/*.png`): with a `public/` directory the
+  server mounts only that at `/signalk-crewradio/`, and the App Store probe looks there first, so
+  anything under `docs/` would be unreachable and the Webapps card would show a monogram. `lib/packet.js`, `lib/crypto.js` and
+  `lib/node.js` mirror `Packet.kt`, `ChannelCrypto.kt`, `Hello.kt` and the engine's roster rules
+  byte for byte; `sk-plugin/test/vector.json` and the app's `CrossLanguageVectorTest` check the
+  same packet, so change both when the wire changes.
+- `lib/tts.js` (`FliteTts`): one WASI instance per sentence (Flite's entry point is not
+  re-entrant), a WAV round trip through `tts-tmp` in the plugin's data directory (the OS temp dir when the
+  server has no `getDataDirPath`), a byte-bounded cache, units
+  and numbers spelled out, texts capped at 500 characters, synthesis serialised. `lib/queue.js`:
+  normal announcements in order, urgent ones to the front, cutting a normal one short
+  (`node.cancel()`). `index.js` exposes say() as a PUT handler on `communication.crewradio.say`,
+  `POST /plugins/signalk-crewradio/say` (`registerWithRouter`; the body may be JSON or plain
+  text, read by hand when the server has not parsed it) and the PropertyValue
+  `signalk-crewradio.api` (`{version: 1, say}`), and publishes `communication.crewradio.speaking`.
+  `lib/bridge.js` announces notifications through the same say(), state and path first
+  (`spoken()`: "Alarm, navigation position: ...", setting `sayPath`). `public/index.html` is the
+  web page (keyword `signalk-webapp`, served at `/signalk-crewradio/`): plain HTML and JS, polls
+  `GET /plugins/signalk-crewradio/status` (`statusNow()`) once a second and posts test calls to
+  `/say`; `webapp.png` is a real capture of it, like the admin UI pictures. signalk-wyoming was tried first
+  (a Wyoming satellite) and dropped on 2026-09-06: containers and a separate TTS service for one
+  sentence; do not bring it back.
+- Delivery (`lib/node.js`, `lib/lan.js`): frames leave 100 ms ahead of real time on a
+  drift-corrected timer schedule (a blocking sub-millisecond sleep was tried and removed: a
+  datagram only leaves on the next event-loop turn, so it burst the whole announcement at the end;
+  the sender yields after every send), and every packet also goes unicast to each peer heard from
+  directly (`hops - ttl == 0`), because access points drop a few percent of multicast even in the
+  same cabin; the phones drop the copies they get twice. Measured with the app's Status counters.
 - Phase 2 (app changes, same wire version): an urgent announcement should play through a
-  half-duplex phone that is transmitting; acknowledgement from a phone.
+  half-duplex phone that is transmitting; acknowledgement from a phone; the app's LanTransport
+  could send unicast copies to known peers the same way.
 
 ## Licence
 - EUPL-1.2 (`LICENSE`, SPDX `EUPL-1.2`), declared in the README and in the SBOM's metadata. Keep
